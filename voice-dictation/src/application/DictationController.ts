@@ -112,7 +112,7 @@ export const createDictationController = (
         textToInject = `[Error de transcripción - ${filename}]`;
       } else {
         transcription = transcribeResult.value;
-        textToInject = getFinalText(transcription);
+        textToInject = getFinalText(transcription).trim(); // Remove leading/trailing spaces
 
         if (textToInject.trim() === '') {
           console.log('⚠️  No se detectó audio/habla');
