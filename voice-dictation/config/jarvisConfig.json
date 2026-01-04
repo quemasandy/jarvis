@@ -1,0 +1,46 @@
+{
+  "triggerKeys": {
+    "rightOption": {
+      "enabled": true,
+      "keyNames": ["RIGHT ALT"],
+      "action": "dictation",
+      "description": "Right Option (⌥) - Primary dictation key"
+    },
+    "fn": {
+      "enabled": true,
+      "keyNames": ["FN", "FUNCTION", "GLOBE"],
+      "action": "dictation",
+      "description": "Fn/Globe key - May be intercepted by system"
+    },
+    "rightCommand": {
+      "enabled": true,
+      "keyNames": ["RIGHT META"],
+      "action": "dictation",
+      "description": "Right Command (⌘) - Alternative trigger"
+    },
+    "f19": {
+      "enabled": false,
+      "keyNames": ["F19"],
+      "action": "dictation",
+      "description": "F19 - For Karabiner users"
+    }
+  },
+  "stt": {
+    "provider": "groq",
+    "model": "whisper-large-v3-turbo"
+  },
+  "postProcessing": {
+    "enabled": false,
+    "provider": "ollama",
+    "model": "llama3.2"
+  },
+  "audio": {
+    "sampleRate": 16000,
+    "channels": 1,
+    "bitDepth": 16
+  },
+  "storage": {
+    "keepAudio": true,
+    "transcriptionsPath": "./storage/transcriptions"
+  }
+}
