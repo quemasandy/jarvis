@@ -4,8 +4,8 @@ A productivity app to capture voice and convert it to text in any macOS applicat
 
 ## Features
 
-- **Hold Fn key** to start recording
-- **Release Fn key** to stop and inject text
+- **Hold Right Option (⌥)** to start recording
+- **Release** to stop and inject text
 - Supports Spanish, English, and Spanglish
 - Understands technical jargon (AWS, Lambda, TypeScript, etc.)
 - Works in any application with text input
@@ -27,10 +27,18 @@ brew install sox
 
 ### macOS Permissions
 
-Grant these permissions in System Preferences → Security & Privacy → Privacy:
+**IMPORTANTE**: Los permisos se dan a la **Terminal**, no a la app.
 
-1. **Accessibility** - Required for keyboard listening and text injection
-2. **Microphone** - Required for audio recording
+1. Abre **System Settings → Privacy & Security → Accessibility**
+2. Click el candado 🔒 para desbloquear
+3. Click **+** y agrega tu Terminal:
+   - `/Applications/Utilities/Terminal.app` (Terminal nativa)
+   - `/Applications/iTerm.app` (si usas iTerm2)
+   - `/Applications/Warp.app` (si usas Warp)
+4. Repite para **Input Monitoring** (mismo proceso)
+5. Repite para **Microphone**
+
+Si no encuentras la app, arrastra el icono desde Finder.
 
 ## Installation
 
@@ -85,10 +93,22 @@ npm start
 
 1. Start the app with `npm run dev`
 2. Focus on any text input field (Chrome, VSCode, Notes, etc.)
-3. **Hold** the Fn key (or Globe key on newer Macs)
+3. **Hold** the **Right Option (⌥)** key
 4. Speak your text
-5. **Release** the Fn key
+5. **Release** the key
 6. Text appears at cursor position
+
+**Teclas alternativas soportadas:** Right Command, F19, Fn (si no es interceptada)
+
+### Debug Mode
+
+Si las teclas no se detectan, ejecuta en modo debug:
+
+```bash
+DEBUG_KEYS=1 npm run dev
+```
+
+Esto mostrará todas las teclas presionadas para diagnosticar.
 
 ## Architecture
 
@@ -110,17 +130,29 @@ src/
 
 ## Troubleshooting
 
+### Las teclas no se detectan
+
+1. Ejecuta `DEBUG_KEYS=1 npm run dev` para ver qué teclas detecta
+2. Verifica que tu **Terminal** tiene permisos en:
+   - System Settings → Privacy & Security → **Input Monitoring**
+   - System Settings → Privacy & Security → **Accessibility**
+3. Reinicia la Terminal después de agregar permisos
+
+### La tecla Fn no funciona
+
+macOS intercepta la tecla Fn antes de que llegue a la app. Usa **Right Option (⌥)** como alternativa.
+
 ### "Permission denied" errors
 
-Ensure the terminal app has Accessibility permissions in System Preferences.
+Asegúrate que la Terminal tenga permisos de Accessibility.
 
 ### No audio recorded
 
-Check that sox is installed and microphone permissions are granted.
+Verifica que sox está instalado y que tienes permisos de Microphone.
 
 ### Text not appearing
 
-Verify Accessibility permissions and that the target app accepts keyboard input.
+Verifica permisos de Accessibility y que la app destino acepta input de teclado.
 
 ## License
 

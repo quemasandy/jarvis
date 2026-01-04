@@ -67,10 +67,11 @@ const printBanner = (): void => {
 const printInstructions = (): void => {
   console.log('📖 Instrucciones:');
   console.log('   1. Enfoca cualquier campo de texto (Chrome, VSCode, etc.)');
-  console.log('   2. Mantén presionada la tecla Fn (o Globe)');
+  console.log('   2. Mantén presionada RIGHT OPTION (⌥) para grabar');
   console.log('   3. Habla tu texto');
-  console.log('   4. Suelta Fn para insertar el texto');
+  console.log('   4. Suelta la tecla para insertar el texto');
   console.log('');
+  console.log('   💡 También funciona: Fn, F19, Hyper');
   console.log('   Presiona Ctrl+C para salir');
   console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -94,26 +95,46 @@ const main = async (): Promise<void> => {
   // Setup keyboard listener
   const keyboard = new GlobalKeyboardListener();
 
-  // Track Fn key state to handle press/release correctly
-  let fnPressed = false;
+  // Debug mode: set DEBUG_KEYS=1 to see all key events
+  const debugKeys = process.env.DEBUG_KEYS === '1';
+
+  // Track trigger key state
+  let triggerPressed = false;
+
+  // Trigger keys: Right Option is most reliable on macOS
+  // Fn/Globe is often intercepted by the system
+  const TRIGGER_KEYS = [
+    'RIGHT ALT',      // Right Option key
+    'RIGHT META',     // Right Command (alternative)
+    'FN',             // Fn key (may not work)
+    'FUNCTION',       // Fn alternative name
+    'GLOBE',          // Globe key on newer Macs
+    'F19',            // F19 (good for Karabiner users)
+  ];
 
   keyboard.addListener((event) => {
-    // The Fn key on macOS is typically reported as "FN" or "FUNCTION"
-    // On newer Macs with Globe key, it might be "GLOBE"
     const keyName = event.name?.toUpperCase() || '';
-    const isFnKey = keyName === 'FN' || keyName === 'FUNCTION' || keyName === 'GLOBE';
+    const state = event.state;
 
-    if (!isFnKey) {
+    // Debug: show all key events
+    if (debugKeys) {
+      console.log(`🔑 Key: "${event.name}" (${keyName}) - State: ${state}`);
+    }
+
+    // Check if this is a trigger key
+    const isTriggerKey = TRIGGER_KEYS.includes(keyName);
+
+    if (!isTriggerKey) {
       return;
     }
 
-    if (event.state === 'DOWN' && !fnPressed) {
-      fnPressed = true;
+    if (state === 'DOWN' && !triggerPressed) {
+      triggerPressed = true;
       controller.handleKeyPress().catch((err) => {
         console.error('❌ Error en handleKeyPress:', err);
       });
-    } else if (event.state === 'UP' && fnPressed) {
-      fnPressed = false;
+    } else if (state === 'UP' && triggerPressed) {
+      triggerPressed = false;
       controller.handleKeyRelease().catch((err) => {
         console.error('❌ Error en handleKeyRelease:', err);
       });
@@ -121,7 +142,13 @@ const main = async (): Promise<void> => {
   });
 
   printInstructions();
+
+  if (debugKeys) {
+    console.log('🐛 DEBUG MODE: Mostrando todas las teclas presionadas\n');
+  }
+
   console.log('🚀 Voice Dictation iniciado - Esperando input...\n');
+  console.log('💡 Tip: Si no detecta teclas, ejecuta: DEBUG_KEYS=1 npm run dev\n');
 
   // Handle graceful shutdown
   process.on('SIGINT', () => {
