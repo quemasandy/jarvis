@@ -9,6 +9,7 @@ import { ITextInjector } from '../domain/ports/ITextInjector';
 import { ITranscriptionService } from '../domain/ports/ITranscriptionService';
 import { AudioRecording, formatDuration, getFilename } from '../domain/entities/AudioRecording';
 import { Transcription, getFinalText } from '../domain/entities/Transcription';
+import { processPunctuationCommands } from '../domain/usecases/PunctuationCommandProcessor';
 import { TranscriptionLogData } from '../domain/entities/TranscriptionLog';
 import { HistoryService } from '../infrastructure/storage/HistoryService';
 import { isOk, isErr, match } from './types';
@@ -112,7 +113,9 @@ export const createDictationController = (
         textToInject = `[Error de transcripción - ${filename}]`;
       } else {
         transcription = transcribeResult.value;
-        textToInject = getFinalText(transcription);
+        // Get raw text, apply punctuation command processing, and trim
+        const rawText = getFinalText(transcription);
+        textToInject = processPunctuationCommands(rawText).trim();
 
         if (textToInject.trim() === '') {
           console.log('⚠️  No se detectó audio/habla');

@@ -193,6 +193,7 @@ const printInstructions = (config: AppConfig): void => {
   }
   console.log('   ⚙️  Configura teclas en: config/jarvisConfig.json');
   console.log('   📊 Historial: npm run history | npm run stats');
+  console.log('   💬 Feedback: npm run feedback');
   console.log('   Presiona Ctrl+C para salir');
   console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
