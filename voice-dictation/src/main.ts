@@ -156,8 +156,9 @@ const printInstructions = (): void => {
   console.log('   3. Habla tu texto');
   console.log('   4. Suelta la tecla para insertar el texto');
   console.log('');
-  console.log('   💡 También funciona: Fn, F19, Right Command');
+  console.log('   💡 También funciona: Fn, Right Command');
   console.log('   📊 Historial: npm run history | npm run stats');
+  console.log('   💬 Feedback: npm run feedback');
   console.log('   Presiona Ctrl+C para salir');
   console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -200,7 +201,6 @@ const main = async (): Promise<void> => {
     'FN',             // Fn key (may not work)
     'FUNCTION',       // Fn alternative name
     'GLOBE',          // Globe key on newer Macs
-    'F19',            // F19 (good for Karabiner users)
   ];
 
   keyboard.addListener((event) => {
