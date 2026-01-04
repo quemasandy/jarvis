@@ -1,0 +1,120 @@
+/**
+ * DictationController
+ * Orchestrates the dictation workflow
+ * Receives dependencies via constructor (manual DI)
+ */
+
+import { IAudioRecorder } from '../domain/ports/IAudioRecorder';
+import { ITextInjector } from '../domain/ports/ITextInjector';
+import { formatDuration, getFilename } from '../domain/entities/AudioRecording';
+import { isOk, isErr, match } from './types';
+
+interface DictationControllerDeps {
+  readonly audioRecorder: IAudioRecorder;
+  readonly textInjector: ITextInjector;
+}
+
+interface DictationController {
+  readonly handleKeyPress: () => Promise<void>;
+  readonly handleKeyRelease: () => Promise<void>;
+  readonly isRecording: () => boolean;
+}
+
+/**
+ * Create a DictationController instance
+ * Factory function with manual dependency injection
+ */
+export const createDictationController = (
+  deps: DictationControllerDeps
+): DictationController => {
+  const { audioRecorder, textInjector } = deps;
+
+  const handleKeyPress = async (): Promise<void> => {
+    // Don't start if already recording
+    if (audioRecorder.isRecording()) {
+      console.log('⚠️  Already recording, ignoring key press');
+      return;
+    }
+
+    console.log('🎤 Iniciando grabación...');
+
+    const result = await audioRecorder.startRecording();
+
+    match(result, {
+      onSuccess: () => {
+        console.log('🔴 Grabando... (suelta Fn para detener)');
+      },
+      onFailure: (error) => {
+        console.error(`❌ Error al iniciar grabación: ${error.message}`);
+        if (error.code === 'SOX_NOT_INSTALLED') {
+          console.error('   Instala sox con: brew install sox');
+        }
+      },
+    });
+  };
+
+  const handleKeyRelease = async (): Promise<void> => {
+    // Don't stop if not recording
+    if (!audioRecorder.isRecording()) {
+      return;
+    }
+
+    console.log('⏸️  Deteniendo grabación...');
+
+    const result = await audioRecorder.stopRecording();
+
+    if (isErr(result)) {
+      console.error(`❌ Error al detener grabación: ${result.error.message}`);
+      return;
+    }
+
+    const recording = result.value;
+    const duration = formatDuration(recording);
+    const filename = getFilename(recording);
+
+    console.log(`✅ Audio guardado: ${recording.filePath}`);
+    console.log(`   Duración: ${duration}`);
+
+    // Small delay before injecting text (UX improvement)
+    await delay(200);
+
+    // MVP: Inject simulated text
+    // In v0.2, this will be replaced with actual transcription
+    const simulatedText = `[Audio grabado: ${duration} - ${filename}]`;
+
+    // Get active app for logging
+    const appResult = await textInjector.getActiveApp();
+    const activeApp = isOk(appResult) ? appResult.value : 'unknown';
+
+    console.log(`📝 Inyectando texto en: ${activeApp}`);
+
+    const injectResult = await textInjector.injectText(simulatedText);
+
+    match(injectResult, {
+      onSuccess: () => {
+        console.log('✅ Texto inyectado correctamente');
+        console.log(`   "${simulatedText}"`);
+      },
+      onFailure: (error) => {
+        console.error(`❌ Error al inyectar texto: ${error.message}`);
+        if (error.code === 'PERMISSION_DENIED') {
+          console.error('   Habilita Accessibility en System Preferences');
+        }
+      },
+    });
+
+    console.log('---');
+  };
+
+  const isRecording = (): boolean => audioRecorder.isRecording();
+
+  return {
+    handleKeyPress,
+    handleKeyRelease,
+    isRecording,
+  };
+};
+
+// Helper function for delays
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
