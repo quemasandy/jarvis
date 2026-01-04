@@ -16,5 +16,9 @@
   "storage": {
     "keepAudio": true,
     "transcriptionsPath": "./storage/transcriptions"
+  },
+  "dictionary": {
+    "enabled": true,
+    "path": "./config/dictionary.json"
   }
 }

@@ -14,6 +14,12 @@ import {
   DetectedLanguage,
 } from '../../domain/entities/Transcription';
 import {
+  CustomDictionary,
+  EMPTY_DICTIONARY,
+  generateVocabularyPrompt,
+  applyReplacements,
+} from '../../domain/entities/CustomDictionary';
+import {
   DictationResult,
   Ok,
   Err,
@@ -24,6 +30,7 @@ interface GroqTranscriptionServiceConfig {
   readonly apiKey: string;
   readonly model?: string;
   readonly language?: string; // 'es', 'en', or undefined for auto-detect
+  readonly dictionary?: CustomDictionary;
 }
 
 /**
@@ -35,6 +42,10 @@ export const createGroqTranscriptionService = (
 ): ITranscriptionService => {
   const groq = new Groq({ apiKey: config.apiKey });
   const model = config.model ?? 'whisper-large-v3-turbo';
+  const dictionary = config.dictionary ?? EMPTY_DICTIONARY;
+
+  // Generate vocabulary prompt for Whisper
+  const vocabularyPrompt = generateVocabularyPrompt(dictionary);
 
   const transcribe = async (
     recording: AudioRecording
@@ -53,24 +64,29 @@ export const createGroqTranscriptionService = (
       // Read the audio file
       const audioFile = fs.createReadStream(recording.filePath);
 
-      // Call Groq Whisper API
+      // Call Groq Whisper API with optional vocabulary prompt
       const response = await groq.audio.transcriptions.create({
         file: audioFile,
         model: model,
         language: config.language, // undefined = auto-detect
         response_format: 'verbose_json',
+        prompt: vocabularyPrompt, // Custom vocabulary hint
       });
 
       // Extract text and language
       // verbose_json response includes 'language' field but TypeScript doesn't know
-      const rawText = response.text || '';
+      let rawText = response.text || '';
       const responseAny = response as unknown as Record<string, unknown>;
       const detectedLang = mapLanguage(responseAny.language as string | undefined);
+
+      // Apply post-processing replacements from dictionary
+      const processedText = applyReplacements(rawText, dictionary);
 
       // Create transcription entity
       const transcription = createTranscription(recording.id, rawText, {
         language: detectedLang,
         confidence: undefined, // Groq doesn't provide confidence scores
+        processedText: processedText !== rawText ? processedText : undefined,
       });
 
       return Ok(transcription);
