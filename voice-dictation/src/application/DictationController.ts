@@ -7,14 +7,18 @@
 import { IAudioRecorder } from '../domain/ports/IAudioRecorder';
 import { ITextInjector } from '../domain/ports/ITextInjector';
 import { ITranscriptionService } from '../domain/ports/ITranscriptionService';
-import { formatDuration, getFilename } from '../domain/entities/AudioRecording';
-import { getFinalText } from '../domain/entities/Transcription';
+import { AudioRecording, formatDuration, getFilename } from '../domain/entities/AudioRecording';
+import { Transcription, getFinalText } from '../domain/entities/Transcription';
+import { TranscriptionLogData } from '../domain/entities/TranscriptionLog';
+import { HistoryService } from '../infrastructure/storage/HistoryService';
 import { isOk, isErr, match } from './types';
 
 interface DictationControllerDeps {
   readonly audioRecorder: IAudioRecorder;
   readonly textInjector: ITextInjector;
-  readonly transcriptionService?: ITranscriptionService; // Optional for MVP mode
+  readonly transcriptionService?: ITranscriptionService;
+  readonly historyService?: HistoryService;
+  readonly model?: string;
 }
 
 interface DictationController {
@@ -30,7 +34,13 @@ interface DictationController {
 export const createDictationController = (
   deps: DictationControllerDeps
 ): DictationController => {
-  const { audioRecorder, textInjector, transcriptionService } = deps;
+  const {
+    audioRecorder,
+    textInjector,
+    transcriptionService,
+    historyService,
+    model = 'whisper-large-v3-turbo'
+  } = deps;
 
   const handleKeyPress = async (): Promise<void> => {
     // Don't start if already recording
@@ -78,8 +88,17 @@ export const createDictationController = (
     console.log(`✅ Audio guardado: ${recording.filePath}`);
     console.log(`   Duración: ${duration}`);
 
+    // Get active app first (needed for logging)
+    const appResult = await textInjector.getActiveApp();
+    const activeApp = isOk(appResult) ? appResult.value : 'unknown';
+
+    // Track transcription timing
+    const transcriptionStartTime = Date.now();
+
     // Get text to inject (transcription or simulated)
     let textToInject: string;
+    let transcription: Transcription | null = null;
+    let transcriptionError: string | undefined;
 
     if (transcriptionService) {
       // Real transcription mode
@@ -88,16 +107,18 @@ export const createDictationController = (
       const transcribeResult = await transcriptionService.transcribe(recording);
 
       if (isErr(transcribeResult)) {
-        console.error(`❌ Error de transcripción: ${transcribeResult.error.message}`);
-        // Fallback to simulated text on error
+        transcriptionError = transcribeResult.error.message;
+        console.error(`❌ Error de transcripción: ${transcriptionError}`);
         textToInject = `[Error de transcripción - ${filename}]`;
       } else {
-        const transcription = transcribeResult.value;
+        transcription = transcribeResult.value;
         textToInject = getFinalText(transcription);
 
         if (textToInject.trim() === '') {
           console.log('⚠️  No se detectó audio/habla');
-          return; // Don't inject empty text
+          // Still log to history (empty transcription)
+          await logToHistory(recording, '', activeApp, transcriptionStartTime, transcription, transcriptionError);
+          return;
         }
 
         console.log(`✅ Transcripción completada (${transcription.language})`);
@@ -110,10 +131,6 @@ export const createDictationController = (
     // Small delay before injecting text (UX improvement)
     await delay(200);
 
-    // Get active app for logging
-    const appResult = await textInjector.getActiveApp();
-    const activeApp = isOk(appResult) ? appResult.value : 'unknown';
-
     console.log(`📝 Inyectando texto en: ${activeApp}`);
 
     const injectResult = await textInjector.injectText(textToInject);
@@ -121,7 +138,6 @@ export const createDictationController = (
     match(injectResult, {
       onSuccess: () => {
         console.log('✅ Texto inyectado correctamente');
-        // Show preview (truncate if too long)
         const preview = textToInject.length > 100
           ? textToInject.substring(0, 100) + '...'
           : textToInject;
@@ -135,7 +151,49 @@ export const createDictationController = (
       },
     });
 
+    // Log to history
+    await logToHistory(
+      recording,
+      textToInject,
+      activeApp,
+      transcriptionStartTime,
+      transcription,
+      transcriptionError
+    );
+
     console.log('---');
+  };
+
+  /**
+   * Log transcription to history service
+   */
+  const logToHistory = async (
+    recording: AudioRecording,
+    text: string,
+    app: string,
+    startTime: number,
+    transcription: Transcription | null,
+    error?: string
+  ): Promise<void> => {
+    if (!historyService) return;
+
+    const logData: TranscriptionLogData = {
+      transcriptionId: transcription?.id || recording.id,
+      audioPath: recording.filePath,
+      text: text.trim(),
+      app,
+      durationMs: recording.durationMs,
+      language: transcription?.language || 'unknown',
+      transcriptionLatencyMs: Date.now() - startTime,
+      model,
+      error,
+    };
+
+    const logResult = await historyService.logTranscription(logData);
+
+    if (isErr(logResult)) {
+      console.warn(`⚠️  No se pudo guardar en historial: ${logResult.error.message}`);
+    }
   };
 
   const isRecording = (): boolean => audioRecorder.isRecording();

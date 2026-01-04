@@ -1,12 +1,15 @@
 {
   "name": "voice-dictation",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Voice dictation app for macOS - capture voice and convert to text in any application",
   "main": "dist/main.js",
   "scripts": {
     "dev": "ts-node src/main.ts",
     "build": "tsc",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "history": "ts-node src/cli/history.ts",
+    "stats": "ts-node src/cli/stats.ts",
+    "feedback": "ts-node src/cli/feedback.ts"
   },
   "dependencies": {
     "groq-sdk": "^0.7.0",

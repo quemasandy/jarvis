@@ -15,9 +15,16 @@ import {
   createGroqTranscriptionService,
   checkGroqApiKey,
 } from './infrastructure/transcription/GroqTranscriptionService';
+import { createHistoryService, HistoryService } from './infrastructure/storage/HistoryService';
 import { createDictationController } from './application/DictationController';
-import { isErr } from './application/types';
+import { isErr, isOk } from './application/types';
 import { ITranscriptionService } from './domain/ports/ITranscriptionService';
+
+// Constants
+const AUDIO_DIR = './storage/audio';
+const HISTORY_DIR = './storage/history';
+const RETENTION_HOURS = 24; // 1 day
+const MODEL = 'whisper-large-v3-turbo';
 
 /**
  * Load environment variables from config/.env
@@ -43,9 +50,12 @@ const loadEnv = (): Record<string, string> => {
 };
 
 // Application factory (Functional DI)
-const createApp = (transcriptionService?: ITranscriptionService) => {
+const createApp = (
+  transcriptionService?: ITranscriptionService,
+  historyService?: HistoryService
+) => {
   // Create infrastructure implementations
-  const audioRecorder = createSoxAudioRecorder('./storage/audio');
+  const audioRecorder = createSoxAudioRecorder(AUDIO_DIR);
   const textInjector = createAppleScriptTextInjector();
 
   // Create application controller with dependencies
@@ -53,6 +63,8 @@ const createApp = (transcriptionService?: ITranscriptionService) => {
     audioRecorder,
     textInjector,
     transcriptionService,
+    historyService,
+    model: MODEL,
   });
 
   return { controller };
@@ -62,6 +74,7 @@ const createApp = (transcriptionService?: ITranscriptionService) => {
 const runStartupChecks = async (env: Record<string, string>): Promise<{
   ok: boolean;
   transcriptionService?: ITranscriptionService;
+  historyService?: HistoryService;
 }> => {
   console.log('🔍 Verificando requisitos del sistema...\n');
 
@@ -83,6 +96,23 @@ const runStartupChecks = async (env: Record<string, string>): Promise<{
     console.log('✅ Permisos de Accessibility verificados');
   }
 
+  // Initialize history service
+  const historyService = createHistoryService({
+    historyDir: HISTORY_DIR,
+    audioDir: AUDIO_DIR,
+    retentionHours: RETENTION_HOURS,
+  });
+
+  // Run cleanup on startup
+  const cleanupResult = await historyService.cleanup();
+  if (isOk(cleanupResult)) {
+    const { deletedAudioFiles, deletedDebugEntries } = cleanupResult.value;
+    if (deletedAudioFiles > 0 || deletedDebugEntries > 0) {
+      console.log(`🧹 Limpieza: ${deletedAudioFiles} audios, ${deletedDebugEntries} logs antiguos eliminados`);
+    }
+  }
+  console.log('✅ Historial inicializado');
+
   // Check Groq API key
   const groqApiKey = env.GROQ_API_KEY || process.env.GROQ_API_KEY || '';
   const hasValidKey = await checkGroqApiKey(groqApiKey);
@@ -93,6 +123,7 @@ const runStartupChecks = async (env: Record<string, string>): Promise<{
     console.log('✅ Groq API key configurada - Transcripción ACTIVADA');
     transcriptionService = createGroqTranscriptionService({
       apiKey: groqApiKey,
+      model: MODEL,
     });
   } else {
     console.warn('⚠️  Groq API key no configurada - Modo SIMULACIÓN');
@@ -100,12 +131,12 @@ const runStartupChecks = async (env: Record<string, string>): Promise<{
   }
 
   console.log('');
-  return { ok: true, transcriptionService };
+  return { ok: true, transcriptionService, historyService };
 };
 
 // Print startup banner
 const printBanner = (hasTranscription: boolean): void => {
-  const version = hasTranscription ? 'v0.2.0' : 'v0.1.0 (MVP)';
+  const version = hasTranscription ? 'v0.3.0' : 'v0.1.0 (MVP)';
   const mode = hasTranscription ? '🎯 Transcripción Real' : '📝 Modo Simulación';
 
   console.log('');
@@ -126,6 +157,7 @@ const printInstructions = (): void => {
   console.log('   4. Suelta la tecla para insertar el texto');
   console.log('');
   console.log('   💡 También funciona: Fn, F19, Right Command');
+  console.log('   📊 Historial: npm run history | npm run stats');
   console.log('   Presiona Ctrl+C para salir');
   console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -138,7 +170,7 @@ const main = async (): Promise<void> => {
   const env = loadEnv();
 
   // Run startup checks
-  const { ok, transcriptionService } = await runStartupChecks(env);
+  const { ok, transcriptionService, historyService } = await runStartupChecks(env);
 
   // Print banner after checks (so we know if transcription is enabled)
   printBanner(!!transcriptionService);
@@ -149,7 +181,7 @@ const main = async (): Promise<void> => {
   }
 
   // Create application
-  const { controller } = createApp(transcriptionService);
+  const { controller } = createApp(transcriptionService, historyService);
 
   // Setup keyboard listener
   const keyboard = new GlobalKeyboardListener();
