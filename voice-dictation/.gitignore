@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+config/.env
+.env
+
+# Storage (generated at runtime)
+storage/audio/*.wav
+storage/transcriptions/*.json
+
+# Keep storage directories
+!storage/audio/.gitkeep
+!storage/transcriptions/.gitkeep
+
+# OS files
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*

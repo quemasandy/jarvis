@@ -1,0 +1,20 @@
+{
+  "stt": {
+    "provider": "groq",
+    "model": "whisper-large-v3-turbo"
+  },
+  "postProcessing": {
+    "enabled": false,
+    "provider": "ollama",
+    "model": "llama3.2"
+  },
+  "audio": {
+    "sampleRate": 16000,
+    "channels": 1,
+    "bitDepth": 16
+  },
+  "storage": {
+    "keepAudio": true,
+    "transcriptionsPath": "./storage/transcriptions"
+  }
+}
