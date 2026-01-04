@@ -6,12 +6,15 @@
 
 import { IAudioRecorder } from '../domain/ports/IAudioRecorder';
 import { ITextInjector } from '../domain/ports/ITextInjector';
+import { ITranscriptionService } from '../domain/ports/ITranscriptionService';
 import { formatDuration, getFilename } from '../domain/entities/AudioRecording';
+import { getFinalText } from '../domain/entities/Transcription';
 import { isOk, isErr, match } from './types';
 
 interface DictationControllerDeps {
   readonly audioRecorder: IAudioRecorder;
   readonly textInjector: ITextInjector;
+  readonly transcriptionService?: ITranscriptionService; // Optional for MVP mode
 }
 
 interface DictationController {
@@ -27,7 +30,7 @@ interface DictationController {
 export const createDictationController = (
   deps: DictationControllerDeps
 ): DictationController => {
-  const { audioRecorder, textInjector } = deps;
+  const { audioRecorder, textInjector, transcriptionService } = deps;
 
   const handleKeyPress = async (): Promise<void> => {
     // Don't start if already recording
@@ -42,7 +45,7 @@ export const createDictationController = (
 
     match(result, {
       onSuccess: () => {
-        console.log('🔴 Grabando... (suelta Fn para detener)');
+        console.log('🔴 Grabando... (suelta la tecla para detener)');
       },
       onFailure: (error) => {
         console.error(`❌ Error al iniciar grabación: ${error.message}`);
@@ -75,12 +78,37 @@ export const createDictationController = (
     console.log(`✅ Audio guardado: ${recording.filePath}`);
     console.log(`   Duración: ${duration}`);
 
+    // Get text to inject (transcription or simulated)
+    let textToInject: string;
+
+    if (transcriptionService) {
+      // Real transcription mode
+      console.log('🔄 Transcribiendo audio...');
+
+      const transcribeResult = await transcriptionService.transcribe(recording);
+
+      if (isErr(transcribeResult)) {
+        console.error(`❌ Error de transcripción: ${transcribeResult.error.message}`);
+        // Fallback to simulated text on error
+        textToInject = `[Error de transcripción - ${filename}]`;
+      } else {
+        const transcription = transcribeResult.value;
+        textToInject = getFinalText(transcription);
+
+        if (textToInject.trim() === '') {
+          console.log('⚠️  No se detectó audio/habla');
+          return; // Don't inject empty text
+        }
+
+        console.log(`✅ Transcripción completada (${transcription.language})`);
+      }
+    } else {
+      // MVP mode: simulated text
+      textToInject = `[Audio grabado: ${duration} - ${filename}]`;
+    }
+
     // Small delay before injecting text (UX improvement)
     await delay(200);
-
-    // MVP: Inject simulated text
-    // In v0.2, this will be replaced with actual transcription
-    const simulatedText = `[Audio grabado: ${duration} - ${filename}]`;
 
     // Get active app for logging
     const appResult = await textInjector.getActiveApp();
@@ -88,12 +116,16 @@ export const createDictationController = (
 
     console.log(`📝 Inyectando texto en: ${activeApp}`);
 
-    const injectResult = await textInjector.injectText(simulatedText);
+    const injectResult = await textInjector.injectText(textToInject);
 
     match(injectResult, {
       onSuccess: () => {
         console.log('✅ Texto inyectado correctamente');
-        console.log(`   "${simulatedText}"`);
+        // Show preview (truncate if too long)
+        const preview = textToInject.length > 100
+          ? textToInject.substring(0, 100) + '...'
+          : textToInject;
+        console.log(`   "${preview}"`);
       },
       onFailure: (error) => {
         console.error(`❌ Error al inyectar texto: ${error.message}`);

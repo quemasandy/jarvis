@@ -3,17 +3,47 @@
  * Entry point - sets up dependencies and keyboard listener
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { GlobalKeyboardListener } from 'node-global-key-listener';
 import { createSoxAudioRecorder, checkSoxInstalled } from './infrastructure/audio/SoxAudioRecorder';
 import {
   createAppleScriptTextInjector,
   checkAccessibilityPermission,
 } from './infrastructure/injection/AppleScriptTextInjector';
+import {
+  createGroqTranscriptionService,
+  checkGroqApiKey,
+} from './infrastructure/transcription/GroqTranscriptionService';
 import { createDictationController } from './application/DictationController';
 import { isErr } from './application/types';
+import { ITranscriptionService } from './domain/ports/ITranscriptionService';
+
+/**
+ * Load environment variables from config/.env
+ */
+const loadEnv = (): Record<string, string> => {
+  const envPath = path.resolve(__dirname, '../config/.env');
+  const env: Record<string, string> = {};
+
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [key, ...valueParts] = trimmed.split('=');
+        if (key && valueParts.length > 0) {
+          env[key.trim()] = valueParts.join('=').trim();
+        }
+      }
+    }
+  }
+
+  return env;
+};
 
 // Application factory (Functional DI)
-const createApp = () => {
+const createApp = (transcriptionService?: ITranscriptionService) => {
   // Create infrastructure implementations
   const audioRecorder = createSoxAudioRecorder('./storage/audio');
   const textInjector = createAppleScriptTextInjector();
@@ -22,13 +52,17 @@ const createApp = () => {
   const controller = createDictationController({
     audioRecorder,
     textInjector,
+    transcriptionService,
   });
 
   return { controller };
 };
 
 // Startup checks
-const runStartupChecks = async (): Promise<boolean> => {
+const runStartupChecks = async (env: Record<string, string>): Promise<{
+  ok: boolean;
+  transcriptionService?: ITranscriptionService;
+}> => {
   console.log('🔍 Verificando requisitos del sistema...\n');
 
   // Check sox installation
@@ -36,7 +70,7 @@ const runStartupChecks = async (): Promise<boolean> => {
   if (isErr(soxResult)) {
     console.error('❌ sox no está instalado');
     console.error('   Instala con: brew install sox\n');
-    return false;
+    return { ok: false };
   }
   console.log(`✅ sox encontrado: ${soxResult.value}`);
 
@@ -49,17 +83,37 @@ const runStartupChecks = async (): Promise<boolean> => {
     console.log('✅ Permisos de Accessibility verificados');
   }
 
+  // Check Groq API key
+  const groqApiKey = env.GROQ_API_KEY || process.env.GROQ_API_KEY || '';
+  const hasValidKey = await checkGroqApiKey(groqApiKey);
+
+  let transcriptionService: ITranscriptionService | undefined;
+
+  if (hasValidKey) {
+    console.log('✅ Groq API key configurada - Transcripción ACTIVADA');
+    transcriptionService = createGroqTranscriptionService({
+      apiKey: groqApiKey,
+    });
+  } else {
+    console.warn('⚠️  Groq API key no configurada - Modo SIMULACIÓN');
+    console.warn('   Configura GROQ_API_KEY en config/.env para transcripción real');
+  }
+
   console.log('');
-  return true;
+  return { ok: true, transcriptionService };
 };
 
 // Print startup banner
-const printBanner = (): void => {
+const printBanner = (hasTranscription: boolean): void => {
+  const version = hasTranscription ? 'v0.2.0' : 'v0.1.0 (MVP)';
+  const mode = hasTranscription ? '🎯 Transcripción Real' : '📝 Modo Simulación';
+
   console.log('');
   console.log('╔════════════════════════════════════════════╗');
   console.log('║       🎤 Voice Dictation for macOS         ║');
-  console.log('║              v0.1.0 (MVP)                   ║');
+  console.log(`║              ${version.padEnd(20)}       ║`);
   console.log('╚════════════════════════════════════════════╝');
+  console.log(`                 ${mode}`);
   console.log('');
 };
 
@@ -71,7 +125,7 @@ const printInstructions = (): void => {
   console.log('   3. Habla tu texto');
   console.log('   4. Suelta la tecla para insertar el texto');
   console.log('');
-  console.log('   💡 También funciona: Fn, F19, Hyper');
+  console.log('   💡 También funciona: Fn, F19, Right Command');
   console.log('   Presiona Ctrl+C para salir');
   console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -80,17 +134,22 @@ const printInstructions = (): void => {
 
 // Main function
 const main = async (): Promise<void> => {
-  printBanner();
+  // Load environment variables
+  const env = loadEnv();
 
   // Run startup checks
-  const checksOk = await runStartupChecks();
-  if (!checksOk) {
+  const { ok, transcriptionService } = await runStartupChecks(env);
+
+  // Print banner after checks (so we know if transcription is enabled)
+  printBanner(!!transcriptionService);
+
+  if (!ok) {
     console.error('❌ Verificación de requisitos fallida. Abortando.\n');
     process.exit(1);
   }
 
   // Create application
-  const { controller } = createApp();
+  const { controller } = createApp(transcriptionService);
 
   // Setup keyboard listener
   const keyboard = new GlobalKeyboardListener();
@@ -148,7 +207,6 @@ const main = async (): Promise<void> => {
   }
 
   console.log('🚀 Voice Dictation iniciado - Esperando input...\n');
-  console.log('💡 Tip: Si no detecta teclas, ejecuta: DEBUG_KEYS=1 npm run dev\n');
 
   // Handle graceful shutdown
   process.on('SIGINT', () => {
