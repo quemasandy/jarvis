@@ -1,6 +1,9 @@
 ---
+local claude - status sin tokens
 Post-procesamiento Ollama	LLM local para mejorar puntuación y términos técnicos
+Esta sesión se quedó sin tokens.
 ---
+cloud code web - pending
 Prompts templates	Atajos para insertar templates predefinidos
  Esta sería una buena funcionalidad para ser implementado con Right Command
   ¿Cómo funcionaría? Sería de la siguiente forma. Si estoy aplastando Right Command,
