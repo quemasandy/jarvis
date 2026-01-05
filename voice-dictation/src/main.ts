@@ -19,13 +19,39 @@ import { createHistoryService, HistoryService } from './infrastructure/storage/H
 import { createDictationController } from './application/DictationController';
 import { isErr, isOk } from './application/types';
 import { ITranscriptionService } from './domain/ports/ITranscriptionService';
+import {
+  CustomDictionary,
+  EMPTY_DICTIONARY,
+  parseDictionary,
+} from './domain/entities/CustomDictionary';
 import { AppConfig, DEFAULT_CONFIG, mergeConfig, getEnabledTriggerKeyNames } from './domain/entities/AppConfig';
 
 // Constants
 const AUDIO_DIR = './storage/audio';
 const HISTORY_DIR = './storage/history';
+const DICTIONARY_PATH = './config/dictionary.json';
 const RETENTION_HOURS = 24; // 1 day
 const MODEL = 'whisper-large-v3-turbo';
+
+/**
+ * Load custom dictionary from JSON file
+ */
+const loadDictionary = (): CustomDictionary => {
+  const dictPath = path.resolve(__dirname, '..', DICTIONARY_PATH);
+
+  if (!fs.existsSync(dictPath)) {
+    return EMPTY_DICTIONARY;
+  }
+
+  try {
+    const content = fs.readFileSync(dictPath, 'utf-8');
+    const data = JSON.parse(content);
+    return parseDictionary(data);
+  } catch (error) {
+    console.warn('⚠️  Error loading dictionary:', error instanceof Error ? error.message : error);
+    return EMPTY_DICTIONARY;
+  }
+};
 
 /**
  * Load environment variables from config/.env
@@ -134,6 +160,15 @@ const runStartupChecks = async (env: Record<string, string>, config: AppConfig):
   }
   console.log('✅ Historial inicializado');
 
+  // Load custom dictionary
+  const dictionary = loadDictionary();
+  if (dictionary.vocabulary.enabled && dictionary.vocabulary.terms.length > 0) {
+    console.log(`✅ Diccionario cargado: ${dictionary.vocabulary.terms.length} términos`);
+  }
+  if (dictionary.replacements.enabled && dictionary.replacements.patterns.length > 0) {
+    console.log(`✅ Reemplazos configurados: ${dictionary.replacements.patterns.length} patrones`);
+  }
+
   // Check Groq API key
   const groqApiKey = env.GROQ_API_KEY || process.env.GROQ_API_KEY || '';
   const hasValidKey = await checkGroqApiKey(groqApiKey);
@@ -145,6 +180,7 @@ const runStartupChecks = async (env: Record<string, string>, config: AppConfig):
     transcriptionService = createGroqTranscriptionService({
       apiKey: groqApiKey,
       model: MODEL,
+      dictionary: dictionary,
     });
   } else {
     console.warn('⚠️  Groq API key no configurada - Modo SIMULACIÓN');

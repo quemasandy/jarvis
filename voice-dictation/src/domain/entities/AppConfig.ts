@@ -27,6 +27,12 @@ export interface AppConfig {
   readonly postProcessing: PostProcessingConfig;
   readonly audio: AudioConfig;
   readonly storage: StorageConfig;
+  readonly dictionary: DictionaryConfig;
+}
+
+export interface DictionaryConfig {
+  readonly enabled: boolean;
+  readonly path: string;
 }
 
 export interface SttConfig {
@@ -97,6 +103,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     keepAudio: true,
     transcriptionsPath: './storage/transcriptions',
   },
+  dictionary: {
+    enabled: true,
+    path: './config/dictionary.json',
+  },
 } as const;
 
 // Merge partial config with defaults
@@ -113,6 +123,7 @@ export const mergeConfig = (
   postProcessing: { ...DEFAULT_CONFIG.postProcessing, ...partial.postProcessing },
   audio: { ...DEFAULT_CONFIG.audio, ...partial.audio },
   storage: { ...DEFAULT_CONFIG.storage, ...partial.storage },
+  dictionary: { ...DEFAULT_CONFIG.dictionary, ...partial.dictionary },
 });
 
 // Helper: Get all enabled trigger key names as a flat array
