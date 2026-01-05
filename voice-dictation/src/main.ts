@@ -24,6 +24,7 @@ import {
   EMPTY_DICTIONARY,
   parseDictionary,
 } from './domain/entities/CustomDictionary';
+import { AppConfig, DEFAULT_CONFIG, mergeConfig, getEnabledTriggerKeyNames } from './domain/entities/AppConfig';
 
 // Constants
 const AUDIO_DIR = './storage/audio';
@@ -75,6 +76,25 @@ const loadEnv = (): Record<string, string> => {
   return env;
 };
 
+/**
+ * Load jarvisConfig.json configuration
+ */
+const loadJarvisConfig = (): AppConfig => {
+  const configPath = path.resolve(__dirname, '../config/jarvisConfig.json');
+
+  try {
+    if (fs.existsSync(configPath)) {
+      const content = fs.readFileSync(configPath, 'utf-8');
+      const parsed = JSON.parse(content);
+      return mergeConfig(parsed);
+    }
+  } catch (error) {
+    console.warn('⚠️  Error loading jarvisConfig.json, using defaults');
+  }
+
+  return DEFAULT_CONFIG;
+};
+
 // Application factory (Functional DI)
 const createApp = (
   transcriptionService?: ITranscriptionService,
@@ -97,10 +117,11 @@ const createApp = (
 };
 
 // Startup checks
-const runStartupChecks = async (env: Record<string, string>): Promise<{
+const runStartupChecks = async (env: Record<string, string>, config: AppConfig): Promise<{
   ok: boolean;
   transcriptionService?: ITranscriptionService;
   historyService?: HistoryService;
+  config: AppConfig;
 }> => {
   console.log('🔍 Verificando requisitos del sistema...\n');
 
@@ -109,7 +130,7 @@ const runStartupChecks = async (env: Record<string, string>): Promise<{
   if (isErr(soxResult)) {
     console.error('❌ sox no está instalado');
     console.error('   Instala con: brew install sox\n');
-    return { ok: false };
+    return { ok: false, config };
   }
   console.log(`✅ sox encontrado: ${soxResult.value}`);
 
@@ -167,7 +188,7 @@ const runStartupChecks = async (env: Record<string, string>): Promise<{
   }
 
   console.log('');
-  return { ok: true, transcriptionService, historyService };
+  return { ok: true, transcriptionService, historyService, config };
 };
 
 // Print startup banner
@@ -185,15 +206,30 @@ const printBanner = (hasTranscription: boolean): void => {
 };
 
 // Print usage instructions
-const printInstructions = (): void => {
+const printInstructions = (config: AppConfig): void => {
+  const { triggerKeys } = config;
+  const enabledKeys: string[] = [];
+
+  if (triggerKeys.rightOption.enabled) enabledKeys.push('Right Option (⌥)');
+  if (triggerKeys.fn.enabled) enabledKeys.push('Fn/Globe');
+  if (triggerKeys.rightCommand.enabled) enabledKeys.push('Right Command (⌘)');
+  if (triggerKeys.f19.enabled) enabledKeys.push('F19');
+
+  const primaryKey = enabledKeys[0] || 'Right Option (⌥)';
+  const otherKeys = enabledKeys.slice(1);
+
   console.log('📖 Instrucciones:');
   console.log('   1. Enfoca cualquier campo de texto (Chrome, VSCode, etc.)');
-  console.log('   2. Mantén presionada RIGHT OPTION (⌥) para grabar');
+  console.log(`   2. Mantén presionada ${primaryKey} para grabar`);
   console.log('   3. Habla tu texto');
   console.log('   4. Suelta la tecla para insertar el texto');
   console.log('');
-  console.log('   💡 También funciona: Fn, F19, Right Command');
+  if (otherKeys.length > 0) {
+    console.log(`   💡 También funciona: ${otherKeys.join(', ')}`);
+  }
+  console.log('   ⚙️  Configura teclas en: config/jarvisConfig.json');
   console.log('   📊 Historial: npm run history | npm run stats');
+  console.log('   💬 Feedback: npm run feedback');
   console.log('   Presiona Ctrl+C para salir');
   console.log('');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -202,11 +238,12 @@ const printInstructions = (): void => {
 
 // Main function
 const main = async (): Promise<void> => {
-  // Load environment variables
+  // Load environment variables and configuration
   const env = loadEnv();
+  const jarvisConfig = loadJarvisConfig();
 
   // Run startup checks
-  const { ok, transcriptionService, historyService } = await runStartupChecks(env);
+  const { ok, transcriptionService, historyService, config } = await runStartupChecks(env, jarvisConfig);
 
   // Print banner after checks (so we know if transcription is enabled)
   printBanner(!!transcriptionService);
@@ -228,16 +265,8 @@ const main = async (): Promise<void> => {
   // Track trigger key state
   let triggerPressed = false;
 
-  // Trigger keys: Right Option is most reliable on macOS
-  // Fn/Globe is often intercepted by the system
-  const TRIGGER_KEYS = [
-    'RIGHT ALT',      // Right Option key
-    'RIGHT META',     // Right Command (alternative)
-    'FN',             // Fn key (may not work)
-    'FUNCTION',       // Fn alternative name
-    'GLOBE',          // Globe key on newer Macs
-    'F19',            // F19 (good for Karabiner users)
-  ];
+  // Get enabled trigger keys from configuration
+  const TRIGGER_KEYS = getEnabledTriggerKeyNames(config);
 
   keyboard.addListener((event) => {
     const keyName = event.name?.toUpperCase() || '';
@@ -268,7 +297,7 @@ const main = async (): Promise<void> => {
     }
   });
 
-  printInstructions();
+  printInstructions(config);
 
   if (debugKeys) {
     console.log('🐛 DEBUG MODE: Mostrando todas las teclas presionadas\n');

@@ -54,7 +54,7 @@ const controller = createDictationController({ audioRecorder, textInjector });
 
 ### Workflow
 
-1. Global keyboard listener detects Right Option key (or F19, Fn, Right Command)
+1. Global keyboard listener detects Right Option key (or Fn, Right Command)
 2. Key down → `controller.handleKeyPress()` → `audioRecorder.startRecording()`
 3. Key up → `controller.handleKeyRelease()` → `audioRecorder.stopRecording()` → `textInjector.injectText()`
 4. Text injected via clipboard + Cmd+V paste

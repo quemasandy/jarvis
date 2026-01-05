@@ -98,7 +98,7 @@ npm start
 5. **Release** the key
 6. Text appears at cursor position
 
-**Teclas alternativas soportadas:** Right Command, F19, Fn (si no es interceptada)
+**Teclas alternativas soportadas:** Right Command, Fn (si no es interceptada)
 
 ### Debug Mode
 

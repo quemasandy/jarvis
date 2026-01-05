@@ -4,7 +4,25 @@
  * Pure data types - no side effects
  */
 
+// Trigger key action types - currently only 'dictation', but extensible for future features
+export type TriggerAction = 'dictation';
+
+export interface TriggerKeyConfig {
+  readonly enabled: boolean;
+  readonly keyNames: readonly string[];
+  readonly action: TriggerAction;
+  readonly description: string;
+}
+
+export interface TriggerKeysConfig {
+  readonly rightOption: TriggerKeyConfig;
+  readonly fn: TriggerKeyConfig;
+  readonly rightCommand: TriggerKeyConfig;
+  readonly f19: TriggerKeyConfig;
+}
+
 export interface AppConfig {
+  readonly triggerKeys: TriggerKeysConfig;
   readonly stt: SttConfig;
   readonly postProcessing: PostProcessingConfig;
   readonly audio: AudioConfig;
@@ -41,6 +59,32 @@ export interface StorageConfig {
 
 // Default configuration
 export const DEFAULT_CONFIG: AppConfig = {
+  triggerKeys: {
+    rightOption: {
+      enabled: true,
+      keyNames: ['RIGHT ALT'],
+      action: 'dictation',
+      description: 'Right Option (⌥) - Primary dictation key',
+    },
+    fn: {
+      enabled: true,
+      keyNames: ['FN', 'FUNCTION', 'GLOBE'],
+      action: 'dictation',
+      description: 'Fn/Globe key - May be intercepted by system',
+    },
+    rightCommand: {
+      enabled: true,
+      keyNames: ['RIGHT META'],
+      action: 'dictation',
+      description: 'Right Command (⌘) - Alternative trigger',
+    },
+    f19: {
+      enabled: false,
+      keyNames: ['F19'],
+      action: 'dictation',
+      description: 'F19 - For Karabiner users',
+    },
+  },
   stt: {
     provider: 'groq',
     model: 'whisper-large-v3-turbo',
@@ -69,9 +113,36 @@ export const DEFAULT_CONFIG: AppConfig = {
 export const mergeConfig = (
   partial: Partial<AppConfig>
 ): AppConfig => ({
+  triggerKeys: {
+    rightOption: { ...DEFAULT_CONFIG.triggerKeys.rightOption, ...partial.triggerKeys?.rightOption },
+    fn: { ...DEFAULT_CONFIG.triggerKeys.fn, ...partial.triggerKeys?.fn },
+    rightCommand: { ...DEFAULT_CONFIG.triggerKeys.rightCommand, ...partial.triggerKeys?.rightCommand },
+    f19: { ...DEFAULT_CONFIG.triggerKeys.f19, ...partial.triggerKeys?.f19 },
+  },
   stt: { ...DEFAULT_CONFIG.stt, ...partial.stt },
   postProcessing: { ...DEFAULT_CONFIG.postProcessing, ...partial.postProcessing },
   audio: { ...DEFAULT_CONFIG.audio, ...partial.audio },
   storage: { ...DEFAULT_CONFIG.storage, ...partial.storage },
   dictionary: { ...DEFAULT_CONFIG.dictionary, ...partial.dictionary },
 });
+
+// Helper: Get all enabled trigger key names as a flat array
+export const getEnabledTriggerKeyNames = (config: AppConfig): string[] => {
+  const { triggerKeys } = config;
+  const allKeys: string[] = [];
+
+  if (triggerKeys.rightOption.enabled) {
+    allKeys.push(...triggerKeys.rightOption.keyNames);
+  }
+  if (triggerKeys.fn.enabled) {
+    allKeys.push(...triggerKeys.fn.keyNames);
+  }
+  if (triggerKeys.rightCommand.enabled) {
+    allKeys.push(...triggerKeys.rightCommand.keyNames);
+  }
+  if (triggerKeys.f19.enabled) {
+    allKeys.push(...triggerKeys.f19.keyNames);
+  }
+
+  return allKeys;
+};
