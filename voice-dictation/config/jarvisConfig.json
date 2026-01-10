@@ -15,8 +15,8 @@
     "rightCommand": {
       "enabled": true,
       "keyNames": ["RIGHT META"],
-      "action": "dictation",
-      "description": "Right Command (⌘) - Alternative trigger"
+      "action": "translate-to-english",
+      "description": "Right Command (⌘) - Translate to English"
     },
     "f19": {
       "enabled": false,
@@ -35,6 +35,13 @@
     "model": "qwen2.5:3b",
     "ollamaUrl": "http://localhost:11434",
     "timeoutMs": 5000
+  },
+  "translation": {
+    "enabled": true,
+    "provider": "ollama",
+    "model": "qwen2.5:3b",
+    "ollamaUrl": "http://localhost:11434",
+    "timeoutMs": 30000
   },
   "audio": {
     "sampleRate": 16000,

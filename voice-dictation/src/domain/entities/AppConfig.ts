@@ -4,8 +4,8 @@
  * Pure data types - no side effects
  */
 
-// Trigger key action types - currently only 'dictation', but extensible for future features
-export type TriggerAction = 'dictation';
+// Trigger key action types - extensible for different voice input modes
+export type TriggerAction = 'dictation' | 'translate-to-english';
 
 export interface TriggerKeyConfig {
   readonly enabled: boolean;
@@ -21,10 +21,19 @@ export interface TriggerKeysConfig {
   readonly f19: TriggerKeyConfig;
 }
 
+export interface TranslationConfig {
+  readonly enabled: boolean;
+  readonly provider: 'ollama' | 'none';
+  readonly model: string;
+  readonly ollamaUrl: string;
+  readonly timeoutMs: number;
+}
+
 export interface AppConfig {
   readonly triggerKeys: TriggerKeysConfig;
   readonly stt: SttConfig;
   readonly postProcessing: PostProcessingConfig;
+  readonly translation: TranslationConfig;
   readonly audio: AudioConfig;
   readonly storage: StorageConfig;
   readonly dictionary: DictionaryConfig;
@@ -98,6 +107,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     ollamaUrl: 'http://localhost:11434',
     timeoutMs: 5000,
   },
+  translation: {
+    enabled: true,
+    provider: 'ollama',
+    model: 'qwen2.5:3b',
+    ollamaUrl: 'http://localhost:11434',
+    timeoutMs: 8000, // Slightly longer timeout for translation
+  },
   audio: {
     sampleRate: 16000,
     channels: 1,
@@ -125,6 +141,7 @@ export const mergeConfig = (
   },
   stt: { ...DEFAULT_CONFIG.stt, ...partial.stt },
   postProcessing: { ...DEFAULT_CONFIG.postProcessing, ...partial.postProcessing },
+  translation: { ...DEFAULT_CONFIG.translation, ...partial.translation },
   audio: { ...DEFAULT_CONFIG.audio, ...partial.audio },
   storage: { ...DEFAULT_CONFIG.storage, ...partial.storage },
   dictionary: { ...DEFAULT_CONFIG.dictionary, ...partial.dictionary },

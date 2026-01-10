@@ -24,13 +24,14 @@ import {
   EMPTY_DICTIONARY,
   parseDictionary,
 } from './domain/entities/CustomDictionary';
-import { AppConfig, DEFAULT_CONFIG, mergeConfig, getEnabledTriggerKeyNames } from './domain/entities/AppConfig';
+import { AppConfig, DEFAULT_CONFIG, mergeConfig, getEnabledTriggerKeyNames, TriggerAction } from './domain/entities/AppConfig';
 import { ITextProcessor } from './domain/ports/ITextProcessor';
 import {
   createOllamaTextProcessor,
   checkOllamaAvailable,
   checkModelAvailable,
 } from './infrastructure/processing/OllamaTextProcessor';
+import { createOllamaTranslationService } from './infrastructure/processing/OllamaTranslationService';
 
 // Constants
 const AUDIO_DIR = './storage/audio';
@@ -105,7 +106,8 @@ const loadJarvisConfig = (): AppConfig => {
 const createApp = (
   transcriptionService?: ITranscriptionService,
   historyService?: HistoryService,
-  textProcessor?: ITextProcessor
+  textProcessor?: ITextProcessor,
+  translationService?: ITextProcessor
 ) => {
   // Create infrastructure implementations
   const audioRecorder = createSoxAudioRecorder(AUDIO_DIR);
@@ -117,6 +119,7 @@ const createApp = (
     textInjector,
     transcriptionService,
     textProcessor,
+    translationService,
     historyService,
     model: MODEL,
   });
@@ -130,6 +133,7 @@ const runStartupChecks = async (env: Record<string, string>, config: AppConfig):
   transcriptionService?: ITranscriptionService;
   historyService?: HistoryService;
   textProcessor?: ITextProcessor;
+  translationService?: ITextProcessor;
   config: AppConfig;
 }> => {
   console.log('🔍 Verificando requisitos del sistema...\n');
@@ -224,8 +228,36 @@ const runStartupChecks = async (env: Record<string, string>, config: AppConfig):
     }
   }
 
+  // Check Ollama for translation service (if enabled)
+  let translationService: ITextProcessor | undefined;
+
+  if (config.translation.enabled && config.translation.provider === 'ollama') {
+    const { ollamaUrl, model: translationModel, timeoutMs } = config.translation;
+
+    // Reuse the same availability check (Ollama might already be confirmed available)
+    const ollamaAvailable = await checkOllamaAvailable(ollamaUrl);
+
+    if (ollamaAvailable) {
+      const modelAvailable = await checkModelAvailable(ollamaUrl, translationModel);
+
+      if (modelAvailable) {
+        console.log(`✅ Traducción al inglés ACTIVADA (${translationModel})`);
+        translationService = createOllamaTranslationService({
+          ollamaUrl,
+          model: translationModel,
+          timeoutMs,
+        });
+      } else {
+        console.warn(`⚠️  Modelo de traducción '${translationModel}' no encontrado`);
+        console.warn(`   Instala con: ollama pull ${translationModel}`);
+      }
+    } else {
+      console.warn('⚠️  Ollama no disponible - Traducción DESACTIVADA');
+    }
+  }
+
   console.log('');
-  return { ok: true, transcriptionService, historyService, textProcessor, config };
+  return { ok: true, transcriptionService, historyService, textProcessor, translationService, config };
 };
 
 // Print startup banner
@@ -280,7 +312,7 @@ const main = async (): Promise<void> => {
   const jarvisConfig = loadJarvisConfig();
 
   // Run startup checks
-  const { ok, transcriptionService, historyService, textProcessor, config } = await runStartupChecks(env, jarvisConfig);
+  const { ok, transcriptionService, historyService, textProcessor, translationService, config } = await runStartupChecks(env, jarvisConfig);
 
   // Print banner after checks (so we know if transcription is enabled)
   printBanner(!!transcriptionService);
@@ -291,7 +323,7 @@ const main = async (): Promise<void> => {
   }
 
   // Create application
-  const { controller } = createApp(transcriptionService, historyService, textProcessor);
+  const { controller } = createApp(transcriptionService, historyService, textProcessor, translationService);
 
   // Setup keyboard listener
   const keyboard = new GlobalKeyboardListener();
@@ -299,11 +331,32 @@ const main = async (): Promise<void> => {
   // Debug mode: set DEBUG_KEYS=1 to see all key events
   const debugKeys = process.env.DEBUG_KEYS === '1';
 
-  // Track trigger key state
+  // Track trigger key state and which key was pressed
   let triggerPressed = false;
+  let activeAction: TriggerAction = 'dictation';
 
   // Get enabled trigger keys from configuration
   const TRIGGER_KEYS = getEnabledTriggerKeyNames(config);
+
+  // Helper to get action for a key name
+  const getActionForKey = (keyName: string): TriggerAction => {
+    const { triggerKeys } = config;
+
+    if (triggerKeys.rightOption.enabled && triggerKeys.rightOption.keyNames.includes(keyName)) {
+      return triggerKeys.rightOption.action;
+    }
+    if (triggerKeys.fn.enabled && triggerKeys.fn.keyNames.includes(keyName)) {
+      return triggerKeys.fn.action;
+    }
+    if (triggerKeys.rightCommand.enabled && triggerKeys.rightCommand.keyNames.includes(keyName)) {
+      return triggerKeys.rightCommand.action;
+    }
+    if (triggerKeys.f19.enabled && triggerKeys.f19.keyNames.includes(keyName)) {
+      return triggerKeys.f19.action;
+    }
+
+    return 'dictation'; // Default fallback
+  };
 
   keyboard.addListener((event) => {
     const keyName = event.name?.toUpperCase() || '';
@@ -323,12 +376,18 @@ const main = async (): Promise<void> => {
 
     if (state === 'DOWN' && !triggerPressed) {
       triggerPressed = true;
+      activeAction = getActionForKey(keyName);
+
+      if (debugKeys) {
+        console.log(`📋 Action: ${activeAction}`);
+      }
+
       controller.handleKeyPress().catch((err) => {
         console.error('❌ Error en handleKeyPress:', err);
       });
     } else if (state === 'UP' && triggerPressed) {
       triggerPressed = false;
-      controller.handleKeyRelease().catch((err) => {
+      controller.handleKeyRelease(activeAction).catch((err) => {
         console.error('❌ Error en handleKeyRelease:', err);
       });
     }

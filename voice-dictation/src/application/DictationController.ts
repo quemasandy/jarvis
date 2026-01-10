@@ -13,6 +13,7 @@ import { Transcription, getFinalText } from '../domain/entities/Transcription';
 import { processPunctuationCommands } from '../domain/usecases/PunctuationCommandProcessor';
 import { TranscriptionLogData } from '../domain/entities/TranscriptionLog';
 import { HistoryService } from '../infrastructure/storage/HistoryService';
+import { TriggerAction } from '../domain/entities/AppConfig';
 import { isOk, isErr, match } from './types';
 
 interface DictationControllerDeps {
@@ -20,13 +21,14 @@ interface DictationControllerDeps {
   readonly textInjector: ITextInjector;
   readonly transcriptionService?: ITranscriptionService;
   readonly textProcessor?: ITextProcessor;
+  readonly translationService?: ITextProcessor;
   readonly historyService?: HistoryService;
   readonly model?: string;
 }
 
 interface DictationController {
   readonly handleKeyPress: () => Promise<void>;
-  readonly handleKeyRelease: () => Promise<void>;
+  readonly handleKeyRelease: (action?: TriggerAction) => Promise<void>;
   readonly isRecording: () => boolean;
 }
 
@@ -40,6 +42,7 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
     textInjector,
     transcriptionService,
     textProcessor,
+    translationService,
     historyService,
     model = 'whisper-large-v3-turbo',
   } = deps;
@@ -68,7 +71,7 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
     });
   };
 
-  const handleKeyRelease = async (): Promise<void> => {
+  const handleKeyRelease = async (action: TriggerAction = 'dictation'): Promise<void> => {
     // Don't stop if not recording
     if (!audioRecorder.isRecording()) {
       return;
@@ -114,11 +117,9 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
         textToInject = `[Error de transcripción - ${filename}]`;
       } else {
         transcription = transcribeResult.value;
-        // Get raw text, apply punctuation command processing, and trim
         const rawText = getFinalText(transcription);
-        textToInject = processPunctuationCommands(rawText).trim();
 
-        if (textToInject.trim() === '') {
+        if (rawText.trim() === '') {
           console.log('⚠️  No se detectó audio/habla');
           // Still log to history (empty transcription)
           await logToHistory(
@@ -134,16 +135,39 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
 
         console.log(`✅ Transcripción completada (${transcription.language})`);
 
-        // Post-processing with LLM (if available)
-        if (textProcessor) {
-          console.log('🤖 Mejorando texto con LLM...');
-          const processedResult = await textProcessor.process(textToInject);
-          if (isOk(processedResult)) {
-            textToInject = processedResult.value;
-            console.log('✅ Texto mejorado');
+        // Branch based on action type
+        if (action === 'translate-to-english') {
+          // Translation mode: translate to English (skip punctuation processing)
+          textToInject = rawText.trim();
+
+          if (translationService) {
+            console.log('🌐 Traduciendo al inglés...');
+            const translationResult = await translationService.process(textToInject);
+            if (isOk(translationResult)) {
+              textToInject = translationResult.value;
+              console.log('✅ Traducción completada');
+            } else {
+              console.warn(`⚠️  Traducción falló: ${translationResult.error.message}`);
+              // Continue with original text (graceful fallback)
+            }
           } else {
-            console.warn(`⚠️  Post-procesamiento falló: ${processedResult.error.message}`);
-            // Continue with original text (graceful fallback)
+            console.warn('⚠️  Servicio de traducción no disponible');
+          }
+        } else {
+          // Dictation mode: apply punctuation commands and optional post-processing
+          textToInject = processPunctuationCommands(rawText).trim();
+
+          // Post-processing with LLM (if available)
+          if (textProcessor) {
+            console.log('🤖 Mejorando texto con LLM...');
+            const processedResult = await textProcessor.process(textToInject);
+            if (isOk(processedResult)) {
+              textToInject = processedResult.value;
+              console.log('✅ Texto mejorado');
+            } else {
+              console.warn(`⚠️  Post-procesamiento falló: ${processedResult.error.message}`);
+              // Continue with original text (graceful fallback)
+            }
           }
         }
       }
