@@ -241,21 +241,29 @@ Usa un LLM local para mejorar la puntuación y gramática de las transcripciones
 
 #### Requisitos
 1. Instalar [Ollama](https://ollama.ai)
-2. Descargar un modelo: `ollama pull llama3.2`
+2. Descargar un modelo: `ollama pull qwen2.5:3b` (recomendado) o `ollama pull llama3.2`
 
 #### Activar Post-Procesamiento
 
-Edita `config/config.json`:
+Edita `config/jarvisConfig.json`:
 
 ```json
 {
   "postProcessing": {
     "enabled": true,
     "provider": "ollama",
-    "model": "llama3.2"
+    "model": "qwen2.5:3b",
+    "ollamaUrl": "http://localhost:11434",
+    "timeoutMs": 5000
   }
 }
 ```
+
+**Opciones:**
+- `enabled` - Activa/desactiva el post-procesamiento
+- `model` - Modelo de Ollama a usar (qwen2.5:3b es rápido y ligero)
+- `ollamaUrl` - URL del servidor Ollama (por defecto localhost:11434)
+- `timeoutMs` - Timeout en milisegundos (5000ms = 5 segundos)
 
 **Nota:** Esto añade latencia pero mejora significativamente la calidad del texto.
 
