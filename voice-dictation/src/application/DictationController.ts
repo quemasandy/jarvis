@@ -7,6 +7,7 @@
 import { IAudioRecorder } from '../domain/ports/IAudioRecorder';
 import { ITextInjector } from '../domain/ports/ITextInjector';
 import { ITranscriptionService } from '../domain/ports/ITranscriptionService';
+import { ITextProcessor } from '../domain/ports/ITextProcessor';
 import { AudioRecording, formatDuration, getFilename } from '../domain/entities/AudioRecording';
 import { Transcription, getFinalText } from '../domain/entities/Transcription';
 import { processPunctuationCommands } from '../domain/usecases/PunctuationCommandProcessor';
@@ -18,6 +19,7 @@ interface DictationControllerDeps {
   readonly audioRecorder: IAudioRecorder;
   readonly textInjector: ITextInjector;
   readonly transcriptionService?: ITranscriptionService;
+  readonly textProcessor?: ITextProcessor;
   readonly historyService?: HistoryService;
   readonly model?: string;
 }
@@ -39,6 +41,7 @@ export const createDictationController = (
     audioRecorder,
     textInjector,
     transcriptionService,
+    textProcessor,
     historyService,
     model = 'whisper-large-v3-turbo'
   } = deps;
@@ -125,6 +128,19 @@ export const createDictationController = (
         }
 
         console.log(`✅ Transcripción completada (${transcription.language})`);
+
+        // Post-processing with LLM (if available)
+        if (textProcessor) {
+          console.log('🤖 Mejorando texto con LLM...');
+          const processedResult = await textProcessor.process(textToInject);
+          if (isOk(processedResult)) {
+            textToInject = processedResult.value;
+            console.log('✅ Texto mejorado');
+          } else {
+            console.warn(`⚠️  Post-procesamiento falló: ${processedResult.error.message}`);
+            // Continue with original text (graceful fallback)
+          }
+        }
       }
     } else {
       // MVP mode: simulated text

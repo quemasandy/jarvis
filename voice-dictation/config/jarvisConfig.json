@@ -30,9 +30,11 @@
     "model": "whisper-large-v3-turbo"
   },
   "postProcessing": {
-    "enabled": false,
+    "enabled": true,
     "provider": "ollama",
-    "model": "llama3.2"
+    "model": "qwen2.5:3b",
+    "ollamaUrl": "http://localhost:11434",
+    "timeoutMs": 5000
   },
   "audio": {
     "sampleRate": 16000,

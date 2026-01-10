@@ -42,8 +42,10 @@ export interface SttConfig {
 
 export interface PostProcessingConfig {
   readonly enabled: boolean;
-  readonly provider: 'ollama';
+  readonly provider: 'ollama' | 'none';
   readonly model: string;
+  readonly ollamaUrl: string;
+  readonly timeoutMs: number;
 }
 
 export interface AudioConfig {
@@ -92,7 +94,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   postProcessing: {
     enabled: false,
     provider: 'ollama',
-    model: 'llama3.2',
+    model: 'qwen2.5:3b',
+    ollamaUrl: 'http://localhost:11434',
+    timeoutMs: 5000,
   },
   audio: {
     sampleRate: 16000,

@@ -7,6 +7,9 @@
     "dev": "ts-node src/main.ts",
     "build": "tsc",
     "start": "node dist/main.js",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "history": "ts-node src/cli/history.ts",
     "stats": "ts-node src/cli/stats.ts",
     "feedback": "ts-node src/cli/feedback.ts"
@@ -17,8 +20,10 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.27",
+    "@vitest/coverage-v8": "^4.0.16",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.16"
   },
   "engines": {
     "node": ">=18.0.0"

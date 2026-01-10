@@ -25,6 +25,12 @@ import {
   parseDictionary,
 } from './domain/entities/CustomDictionary';
 import { AppConfig, DEFAULT_CONFIG, mergeConfig, getEnabledTriggerKeyNames } from './domain/entities/AppConfig';
+import { ITextProcessor } from './domain/ports/ITextProcessor';
+import {
+  createOllamaTextProcessor,
+  checkOllamaAvailable,
+  checkModelAvailable,
+} from './infrastructure/processing/OllamaTextProcessor';
 
 // Constants
 const AUDIO_DIR = './storage/audio';
@@ -98,7 +104,8 @@ const loadJarvisConfig = (): AppConfig => {
 // Application factory (Functional DI)
 const createApp = (
   transcriptionService?: ITranscriptionService,
-  historyService?: HistoryService
+  historyService?: HistoryService,
+  textProcessor?: ITextProcessor
 ) => {
   // Create infrastructure implementations
   const audioRecorder = createSoxAudioRecorder(AUDIO_DIR);
@@ -109,6 +116,7 @@ const createApp = (
     audioRecorder,
     textInjector,
     transcriptionService,
+    textProcessor,
     historyService,
     model: MODEL,
   });
@@ -121,6 +129,7 @@ const runStartupChecks = async (env: Record<string, string>, config: AppConfig):
   ok: boolean;
   transcriptionService?: ITranscriptionService;
   historyService?: HistoryService;
+  textProcessor?: ITextProcessor;
   config: AppConfig;
 }> => {
   console.log('🔍 Verificando requisitos del sistema...\n');
@@ -187,8 +196,36 @@ const runStartupChecks = async (env: Record<string, string>, config: AppConfig):
     console.warn('   Configura GROQ_API_KEY en config/.env para transcripción real');
   }
 
+  // Check Ollama for post-processing (if enabled)
+  let textProcessor: ITextProcessor | undefined;
+
+  if (config.postProcessing.enabled && config.postProcessing.provider === 'ollama') {
+    const { ollamaUrl, model: ollamaModel, timeoutMs } = config.postProcessing;
+
+    const ollamaAvailable = await checkOllamaAvailable(ollamaUrl);
+
+    if (ollamaAvailable) {
+      const modelAvailable = await checkModelAvailable(ollamaUrl, ollamaModel);
+
+      if (modelAvailable) {
+        console.log(`✅ Ollama disponible - Post-procesamiento ACTIVADO (${ollamaModel})`);
+        textProcessor = createOllamaTextProcessor({
+          ollamaUrl,
+          model: ollamaModel,
+          timeoutMs,
+        });
+      } else {
+        console.warn(`⚠️  Modelo '${ollamaModel}' no encontrado en Ollama`);
+        console.warn(`   Instala con: ollama pull ${ollamaModel}`);
+      }
+    } else {
+      console.warn('⚠️  Ollama no disponible - Post-procesamiento DESACTIVADO');
+      console.warn('   Instala con: brew install ollama && ollama serve');
+    }
+  }
+
   console.log('');
-  return { ok: true, transcriptionService, historyService, config };
+  return { ok: true, transcriptionService, historyService, textProcessor, config };
 };
 
 // Print startup banner
@@ -243,7 +280,7 @@ const main = async (): Promise<void> => {
   const jarvisConfig = loadJarvisConfig();
 
   // Run startup checks
-  const { ok, transcriptionService, historyService, config } = await runStartupChecks(env, jarvisConfig);
+  const { ok, transcriptionService, historyService, textProcessor, config } = await runStartupChecks(env, jarvisConfig);
 
   // Print banner after checks (so we know if transcription is enabled)
   printBanner(!!transcriptionService);
@@ -254,7 +291,7 @@ const main = async (): Promise<void> => {
   }
 
   // Create application
-  const { controller } = createApp(transcriptionService, historyService);
+  const { controller } = createApp(transcriptionService, historyService, textProcessor);
 
   // Setup keyboard listener
   const keyboard = new GlobalKeyboardListener();
