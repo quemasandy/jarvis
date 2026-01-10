@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# Pre-commit hook: Run verification before allowing commit
+# This ensures code quality is maintained
+
+echo "🔍 Running pre-commit verification..."
+
+cd voice-dictation
+
+# Run full verification
+npm run verify
+
+# If verify fails, the commit is aborted
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Pre-commit verification failed!"
+  echo "   Fix the issues above before committing."
+  echo ""
+  exit 1
+fi
+
+echo "✅ Pre-commit verification passed!"

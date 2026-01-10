@@ -40,6 +40,8 @@
       "Bash(ts-node:*)",
       "Bash(scala-cli:*)",
       "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
       "Bash(tsc:*)",
       "Bash(rg:*)",
       "Bash(diff:*)",
@@ -51,8 +53,6 @@
     ],
     "ask": [
       "Bash(rm:*)",
-      "Bash(npx:*)",
-      "Bash(npm:*)",
       "Bash(git:*)",
       "Bash(yarn:*)",
       "Bash(pnpm:*)",

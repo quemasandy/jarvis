@@ -18,6 +18,59 @@ DEBUG_KEYS=1 npm run dev  # Debug mode - shows all keyboard events
 
 All commands run from the `voice-dictation/` directory.
 
+## Verification (IMPORTANT - Feedback Loop)
+
+**ALWAYS run `npm run verify` after making code changes.** This is the feedback loop that ensures code quality.
+
+```bash
+npm run verify       # Run ALL checks: typecheck + lint + tests
+```
+
+The verify command runs these checks in order:
+1. `npm run typecheck` - TypeScript type checking (no emit)
+2. `npm run lint` - ESLint static analysis
+3. `npm run test:run` - Vitest unit tests (99+ tests)
+
+### Individual Commands
+
+```bash
+npm run typecheck     # Type check only
+npm run lint          # Lint only
+npm run lint:fix      # Lint and auto-fix
+npm run test:run      # Run tests once
+npm run test          # Run tests in watch mode
+npm run test:coverage # Run tests with coverage report (must meet thresholds)
+```
+
+### Verification Rules
+
+1. **After writing/editing code**: Run `npm run verify`
+2. **If verify fails**: Fix the issues before considering the task complete
+3. **If tests fail**: Analyze the error, fix the code, run verify again
+4. **Before committing**: Pre-commit hook runs `npm run verify` automatically
+
+### Coverage Thresholds
+
+Coverage is enforced via `vitest.config.ts`. Current minimums:
+- **Global**: 30% lines, 35% functions, 25% branches
+- **application/types.ts**: 100% (pure logic)
+- **domain/usecases/**: 90% (pure logic)
+
+If you add code, add tests. If coverage drops below thresholds, `npm run test:coverage` will fail.
+
+### Pre-commit Hook (Husky)
+
+Commits are blocked if `npm run verify` fails. The hook is configured in `.husky/pre-commit`.
+
+### Expected Output
+
+When verification passes, you should see:
+```
+> npm run typecheck  ✓
+> npm run lint       ✓ (no output = no errors)
+> npm run test:run   ✓ 99 tests passed
+```
+
 ### External Dependencies
 
 - `sox` - Required for audio recording. Install: `brew install sox`

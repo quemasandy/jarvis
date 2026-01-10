@@ -5,7 +5,8 @@
   "scripts": {
     "test": "cd voice-dictation && npm run test:run",
     "lint": "eslint voice-dictation/src",
-    "format": "prettier --write voice-dictation/src/**/*.ts"
+    "format": "prettier --write voice-dictation/src/**/*.ts",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
