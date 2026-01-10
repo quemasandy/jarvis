@@ -63,8 +63,7 @@ describe('Result Pattern', () => {
 
   describe('flatMap', () => {
     it('chains successful operations', () => {
-      const divide = (a: number, b: number) =>
-        b === 0 ? Err('division by zero') : Ok(a / b);
+      const divide = (a: number, b: number) => (b === 0 ? Err('division by zero') : Ok(a / b));
 
       const result = flatMap(Ok(10), (x) => divide(x, 2));
       expect(isOk(result) && result.value).toBe(5);

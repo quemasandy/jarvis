@@ -94,7 +94,7 @@ const loadJarvisConfig = (): AppConfig => {
       const parsed = JSON.parse(content);
       return mergeConfig(parsed);
     }
-  } catch (error) {
+  } catch {
     console.warn('⚠️  Error loading jarvisConfig.json, using defaults');
   }
 

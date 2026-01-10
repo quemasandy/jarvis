@@ -28,38 +28,27 @@ export const Err = <E>(error: E): Failure<E> => ({
 });
 
 // Type guards
-export const isOk = <T, E>(result: Result<T, E>): result is Success<T> =>
-  result._tag === 'Success';
+export const isOk = <T, E>(result: Result<T, E>): result is Success<T> => result._tag === 'Success';
 
 export const isErr = <T, E>(result: Result<T, E>): result is Failure<E> =>
   result._tag === 'Failure';
 
 // Functor: map over the success value
-export const map = <T, U, E>(
-  result: Result<T, E>,
-  fn: (value: T) => U
-): Result<U, E> =>
+export const map = <T, U, E>(result: Result<T, E>, fn: (value: T) => U): Result<U, E> =>
   isOk(result) ? Ok(fn(result.value)) : result;
 
 // Monad: flatMap/chain for composing operations
 export const flatMap = <T, U, E>(
   result: Result<T, E>,
   fn: (value: T) => Result<U, E>
-): Result<U, E> =>
-  isOk(result) ? fn(result.value) : result;
+): Result<U, E> => (isOk(result) ? fn(result.value) : result);
 
 // Map over the error
-export const mapErr = <T, E, F>(
-  result: Result<T, E>,
-  fn: (error: E) => F
-): Result<T, F> =>
+export const mapErr = <T, E, F>(result: Result<T, E>, fn: (error: E) => F): Result<T, F> =>
   isErr(result) ? Err(fn(result.error)) : result;
 
 // Unwrap with default value
-export const getOrElse = <T, E>(
-  result: Result<T, E>,
-  defaultValue: T
-): T =>
+export const getOrElse = <T, E>(result: Result<T, E>, defaultValue: T): T =>
   isOk(result) ? result.value : defaultValue;
 
 // Unwrap or throw (use only at boundaries)
@@ -67,9 +56,7 @@ export const unwrap = <T, E>(result: Result<T, E>): T => {
   if (isOk(result)) {
     return result.value;
   }
-  throw result.error instanceof Error
-    ? result.error
-    : new Error(String(result.error));
+  throw result.error instanceof Error ? result.error : new Error(String(result.error));
 };
 
 // Match/fold pattern
@@ -79,15 +66,10 @@ export const match = <T, E, U>(
     readonly onSuccess: (value: T) => U;
     readonly onFailure: (error: E) => U;
   }
-): U =>
-  isOk(result)
-    ? handlers.onSuccess(result.value)
-    : handlers.onFailure(result.error);
+): U => (isOk(result) ? handlers.onSuccess(result.value) : handlers.onFailure(result.error));
 
 // Convert Promise to Result
-export const fromPromise = async <T>(
-  promise: Promise<T>
-): Promise<Result<T, Error>> => {
+export const fromPromise = async <T>(promise: Promise<T>): Promise<Result<T, Error>> => {
   try {
     const value = await promise;
     return Ok(value);

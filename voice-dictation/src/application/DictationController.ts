@@ -34,16 +34,14 @@ interface DictationController {
  * Create a DictationController instance
  * Factory function with manual dependency injection
  */
-export const createDictationController = (
-  deps: DictationControllerDeps
-): DictationController => {
+export const createDictationController = (deps: DictationControllerDeps): DictationController => {
   const {
     audioRecorder,
     textInjector,
     transcriptionService,
     textProcessor,
     historyService,
-    model = 'whisper-large-v3-turbo'
+    model = 'whisper-large-v3-turbo',
   } = deps;
 
   const handleKeyPress = async (): Promise<void> => {
@@ -123,7 +121,14 @@ export const createDictationController = (
         if (textToInject.trim() === '') {
           console.log('⚠️  No se detectó audio/habla');
           // Still log to history (empty transcription)
-          await logToHistory(recording, '', activeApp, transcriptionStartTime, transcription, transcriptionError);
+          await logToHistory(
+            recording,
+            '',
+            activeApp,
+            transcriptionStartTime,
+            transcription,
+            transcriptionError
+          );
           return;
         }
 
@@ -157,9 +162,8 @@ export const createDictationController = (
     match(injectResult, {
       onSuccess: () => {
         console.log('✅ Texto inyectado correctamente');
-        const preview = textToInject.length > 100
-          ? textToInject.substring(0, 100) + '...'
-          : textToInject;
+        const preview =
+          textToInject.length > 100 ? textToInject.substring(0, 100) + '...' : textToInject;
         console.log(`   "${preview}"`);
       },
       onFailure: (error) => {
@@ -225,5 +229,4 @@ export const createDictationController = (
 };
 
 // Helper function for delays
-const delay = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

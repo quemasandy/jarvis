@@ -73,7 +73,7 @@ const cleanupPunctuationSpacing = (text: string): string => {
   result = result.replace(/([.,;:?!])(?=[^\s\n])/g, '$1 ');
 
   // Remove space after opening brackets/quotes
-  result = result.replace(/([(\["])(\s+)/g, '$1');
+  result = result.replace(/([(["])(\s+)/g, '$1');
 
   // Remove space before closing brackets/quotes
   result = result.replace(/(\s+)([)\]"])/g, '$2');

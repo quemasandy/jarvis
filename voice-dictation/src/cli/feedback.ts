@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as readline from 'readline';
+import { spawn } from 'child_process';
 import { createHistoryService } from '../infrastructure/storage/HistoryService';
 import { DebugLogEntry } from '../domain/entities/TranscriptionLog';
 import { isOk } from '../application/types';
@@ -24,7 +25,6 @@ const question = (prompt: string): Promise<string> =>
 
 const playAudio = (audioPath: string): void => {
   if (fs.existsSync(audioPath)) {
-    const { spawn } = require('child_process');
     spawn('afplay', [audioPath], { detached: true, stdio: 'ignore' });
   } else {
     console.log('   ⚠️  Audio no disponible (expirado)');
@@ -61,7 +61,7 @@ const main = async (): Promise<void> => {
   }
 
   const entries = result.value;
-  const pendingEntries = entries.filter(e => e.expectedText === null && e.audioExists);
+  const pendingEntries = entries.filter((e) => e.expectedText === null && e.audioExists);
 
   if (pendingEntries.length === 0) {
     console.log('\n  ✅ No hay transcripciones pendientes de revisión.');

@@ -75,7 +75,7 @@ export const createGroqTranscriptionService = (
 
       // Extract text and language
       // verbose_json response includes 'language' field but TypeScript doesn't know
-      let rawText = response.text || '';
+      const rawText = response.text || '';
       const responseAny = response as unknown as Record<string, unknown>;
       const detectedLang = mapLanguage(responseAny.language as string | undefined);
 
