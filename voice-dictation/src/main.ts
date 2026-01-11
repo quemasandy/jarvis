@@ -293,6 +293,9 @@ const printInstructions = (config: AppConfig): void => {
   console.log('   3. Habla tu texto');
   console.log('   4. Suelta la tecla para insertar el texto');
   console.log('');
+  console.log('   ⚡ Modo rápido: Solo transcribe (~1-2s)');
+  console.log('   ✨ Modo calidad: Shift + tecla → usa Ollama (~5-8s)');
+  console.log('');
   if (otherKeys.length > 0) {
     console.log(`   💡 También funciona: ${otherKeys.join(', ')}`);
   }
@@ -334,6 +337,7 @@ const main = async (): Promise<void> => {
   // Track trigger key state and which key was pressed
   let triggerPressed = false;
   let activeAction: TriggerAction = 'dictation';
+  let shiftPressed = false; // Track Shift for quality mode (useOllama)
 
   // Get enabled trigger keys from configuration
   const TRIGGER_KEYS = getEnabledTriggerKeyNames(config);
@@ -367,6 +371,15 @@ const main = async (): Promise<void> => {
       console.log(`🔑 Key: "${event.name}" (${keyName}) - State: ${state}`);
     }
 
+    // Track Shift state for quality mode (useOllama)
+    if (keyName === 'LEFT SHIFT' || keyName === 'RIGHT SHIFT') {
+      shiftPressed = state === 'DOWN';
+      if (debugKeys) {
+        console.log(`⇧ Shift: ${shiftPressed ? 'pressed' : 'released'}`);
+      }
+      return;
+    }
+
     // Check if this is a trigger key
     const isTriggerKey = TRIGGER_KEYS.includes(keyName);
 
@@ -379,7 +392,7 @@ const main = async (): Promise<void> => {
       activeAction = getActionForKey(keyName);
 
       if (debugKeys) {
-        console.log(`📋 Action: ${activeAction}`);
+        console.log(`📋 Action: ${activeAction}, useOllama: ${shiftPressed}`);
       }
 
       controller.handleKeyPress().catch((err) => {
@@ -387,7 +400,8 @@ const main = async (): Promise<void> => {
       });
     } else if (state === 'UP' && triggerPressed) {
       triggerPressed = false;
-      controller.handleKeyRelease(activeAction).catch((err) => {
+      // Pass shiftPressed as useOllama: Shift held = quality mode (with Ollama)
+      controller.handleKeyRelease(activeAction, shiftPressed).catch((err) => {
         console.error('❌ Error en handleKeyRelease:', err);
       });
     }

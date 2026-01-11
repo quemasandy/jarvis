@@ -11,7 +11,7 @@ import { ITranscriptionService } from '../domain/ports/ITranscriptionService';
 import { ITextProcessor } from '../domain/ports/ITextProcessor';
 import { AudioRecording, formatDuration, getFilename } from '../domain/entities/AudioRecording';
 import { Transcription, getFinalText } from '../domain/entities/Transcription';
-import { processPunctuationCommands } from '../domain/usecases/PunctuationCommandProcessor';
+// Removed: processPunctuationCommands - user doesn't use punctuation commands
 import { TranscriptionLogData } from '../domain/entities/TranscriptionLog';
 import { HistoryService } from '../infrastructure/storage/HistoryService';
 import { TriggerAction } from '../domain/entities/AppConfig';
@@ -32,7 +32,7 @@ interface DictationControllerDeps {
 
 interface DictationController {
   readonly handleKeyPress: () => Promise<void>;
-  readonly handleKeyRelease: (action?: TriggerAction) => Promise<void>;
+  readonly handleKeyRelease: (action?: TriggerAction, useOllama?: boolean) => Promise<void>;
   readonly isRecording: () => boolean;
 }
 
@@ -80,15 +80,28 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
     });
   };
 
-  const handleKeyRelease = async (action: TriggerAction = 'dictation'): Promise<void> => {
+  const handleKeyRelease = async (
+    action: TriggerAction = 'dictation',
+    useOllama: boolean = false
+  ): Promise<void> => {
     // Don't stop if not recording
     if (!audioRecorder.isRecording()) {
       return;
     }
 
+    // Timing metrics for performance analysis
+    const metrics = {
+      total: Date.now(),
+      stopRecording: 0,
+      transcription: 0,
+      postProcessing: 0,
+      injection: 0,
+    };
+
     console.log('⏸️  Deteniendo grabación...');
 
     const result = await audioRecorder.stopRecording();
+    metrics.stopRecording = Date.now() - metrics.total;
 
     if (isErr(result)) {
       console.error(`❌ Error al detener grabación: ${result.error.message}`);
@@ -114,11 +127,13 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
     let transcription: Transcription | null = null;
     let transcriptionError: string | undefined;
 
+    const transcriptionStart = Date.now();
     if (transcriptionService) {
       // Real transcription mode
       console.log('🔄 Transcribiendo audio...');
 
       const transcribeResult = await transcriptionService.transcribe(recording);
+      metrics.transcription = Date.now() - transcriptionStart;
 
       if (isErr(transcribeResult)) {
         transcriptionError = transcribeResult.error.message;
@@ -144,12 +159,15 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
 
         console.log(`✅ Transcripción completada (${transcription.language})`);
 
-        // Branch based on action type
+        // Branch based on action type and useOllama flag
+        const postProcessStart = Date.now();
+
         if (action === 'translate-to-english') {
-          // Translation mode: translate to English (skip punctuation processing)
+          // Translation mode: translate to English
           textToInject = rawText.trim();
 
-          if (translationService) {
+          // Only translate if useOllama is true (Shift held)
+          if (useOllama && translationService) {
             console.log('🌐 Traduciendo al inglés...');
             const translationResult = await translationService.process(textToInject);
             if (isOk(translationResult)) {
@@ -159,15 +177,17 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
               console.warn(`⚠️  Traducción falló: ${translationResult.error.message}`);
               // Continue with original text (graceful fallback)
             }
+          } else if (!useOllama) {
+            console.log('⚡ Modo rápido: sin traducción');
           } else {
             console.warn('⚠️  Servicio de traducción no disponible');
           }
         } else {
-          // Dictation mode: apply punctuation commands and optional post-processing
-          textToInject = processPunctuationCommands(rawText).trim();
+          // Dictation mode: direct text or optional post-processing with LLM
+          textToInject = rawText.trim();
 
-          // Post-processing with LLM (if available)
-          if (textProcessor) {
+          // Only post-process if useOllama is true (Shift held)
+          if (useOllama && textProcessor) {
             console.log('🤖 Mejorando texto con LLM...');
             const processedResult = await textProcessor.process(textToInject);
             if (isOk(processedResult)) {
@@ -177,8 +197,11 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
               console.warn(`⚠️  Post-procesamiento falló: ${processedResult.error.message}`);
               // Continue with original text (graceful fallback)
             }
+          } else if (!useOllama) {
+            console.log('⚡ Modo rápido: sin post-procesamiento');
           }
         }
+        metrics.postProcessing = Date.now() - postProcessStart;
       }
     } else {
       // MVP mode: simulated text
@@ -190,7 +213,9 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
 
     console.log(`📝 Inyectando texto en: ${activeApp}`);
 
+    const injectionStart = Date.now();
     const injectResult = await textInjector.injectText(textToInject);
+    metrics.injection = Date.now() - injectionStart;
 
     match(injectResult, {
       onSuccess: () => {
@@ -207,6 +232,10 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
         }
       },
     });
+
+    // Log timing metrics for performance analysis
+    const totalTime = Date.now() - metrics.total;
+    console.log(`⏱️  Tiempos: stop=${metrics.stopRecording}ms, stt=${metrics.transcription}ms, llm=${metrics.postProcessing}ms, inject=${metrics.injection}ms, total=${totalTime}ms`);
 
     // Log to history
     await logToHistory(

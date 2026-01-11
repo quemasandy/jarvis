@@ -161,7 +161,7 @@ describe('DictationController', () => {
       expect(textInjector.injectText).toHaveBeenCalledWith('Hello world');
     });
 
-    it('applies text processor when available', async () => {
+    it('applies text processor when useOllama is true', async () => {
       const audioRecorder = createMockAudioRecorder({
         isRecording: vi.fn().mockReturnValue(true),
       });
@@ -176,11 +176,34 @@ describe('DictationController', () => {
         textProcessor,
       });
 
-      await controller.handleKeyRelease();
+      // Pass useOllama=true to enable text processing (quality mode with Shift)
+      await controller.handleKeyRelease('dictation', true);
 
       expect(textProcessor.process).toHaveBeenCalledWith('Hello world');
       // Text processor converts to uppercase
       expect(textInjector.injectText).toHaveBeenCalledWith('HELLO WORLD');
+    });
+
+    it('skips text processor in fast mode (useOllama=false)', async () => {
+      const audioRecorder = createMockAudioRecorder({
+        isRecording: vi.fn().mockReturnValue(true),
+      });
+      const textInjector = createMockTextInjector();
+      const transcriptionService = createMockTranscriptionService();
+      const textProcessor = createMockTextProcessor();
+
+      const controller = createDictationController({
+        audioRecorder,
+        textInjector,
+        transcriptionService,
+        textProcessor,
+      });
+
+      // Default useOllama=false - fast mode, no text processing
+      await controller.handleKeyRelease();
+
+      expect(textProcessor.process).not.toHaveBeenCalled();
+      expect(textInjector.injectText).toHaveBeenCalledWith('Hello world');
     });
 
     it('uses original text when text processor fails', async () => {
@@ -202,7 +225,8 @@ describe('DictationController', () => {
         textProcessor,
       });
 
-      await controller.handleKeyRelease();
+      // useOllama=true to trigger text processor
+      await controller.handleKeyRelease('dictation', true);
 
       // Should fall back to original text
       expect(textInjector.injectText).toHaveBeenCalledWith('Hello world');
@@ -255,7 +279,9 @@ describe('DictationController', () => {
       expect(textInjector.injectText).not.toHaveBeenCalled();
     });
 
-    it('processes punctuation commands in transcribed text', async () => {
+    it('passes through transcribed text without punctuation processing', async () => {
+      // Note: Punctuation command processing was removed for performance optimization
+      // Text is now passed through directly without transformation
       const audioRecorder = createMockAudioRecorder({
         isRecording: vi.fn().mockReturnValue(true),
       });
@@ -274,8 +300,8 @@ describe('DictationController', () => {
 
       await controller.handleKeyRelease();
 
-      // Punctuation commands should be processed
-      expect(textInjector.injectText).toHaveBeenCalledWith('Hola. cómo estás?');
+      // Text is passed through as-is (no punctuation processing)
+      expect(textInjector.injectText).toHaveBeenCalledWith('Hola punto cómo estás interrogación');
     });
   });
 
@@ -328,7 +354,7 @@ describe('DictationController', () => {
       const textInjector = createMockTextInjector();
       const transcriptionService = createMockTranscriptionService({
         transcribe: vi.fn().mockResolvedValue(
-          Ok(createTranscription('rec_123', 'Test message punto', { language: 'es' }))
+          Ok(createTranscription('rec_123', 'Test message', { language: 'es' }))
         ),
       });
 
@@ -346,12 +372,12 @@ describe('DictationController', () => {
       expect(controller.isRecording()).toBe(true);
       expect(audioRecorder.startRecording).toHaveBeenCalled();
 
-      // Release key - stop, transcribe, inject
+      // Release key - stop, transcribe, inject (fast mode by default)
       await controller.handleKeyRelease();
       expect(controller.isRecording()).toBe(false);
       expect(audioRecorder.stopRecording).toHaveBeenCalled();
       expect(transcriptionService.transcribe).toHaveBeenCalled();
-      expect(textInjector.injectText).toHaveBeenCalledWith('Test message.');
+      expect(textInjector.injectText).toHaveBeenCalledWith('Test message');
     });
   });
 });
