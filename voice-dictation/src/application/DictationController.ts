@@ -4,6 +4,7 @@
  * Receives dependencies via constructor (manual DI)
  */
 
+import { spawn } from 'child_process';
 import { IAudioRecorder } from '../domain/ports/IAudioRecorder';
 import { ITextInjector } from '../domain/ports/ITextInjector';
 import { ITranscriptionService } from '../domain/ports/ITranscriptionService';
@@ -15,6 +16,9 @@ import { TranscriptionLogData } from '../domain/entities/TranscriptionLog';
 import { HistoryService } from '../infrastructure/storage/HistoryService';
 import { TriggerAction } from '../domain/entities/AppConfig';
 import { isOk, isErr, match } from './types';
+
+// Sound effect for text injection confirmation (macOS system sound)
+const SOUND_INJECT = '/System/Library/Sounds/Glass.aiff';
 
 interface DictationControllerDeps {
   readonly audioRecorder: IAudioRecorder;
@@ -46,6 +50,11 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
     historyService,
     model = 'whisper-large-v3-turbo',
   } = deps;
+
+  // Play sound effect (non-blocking)
+  const playSound = (soundPath: string): void => {
+    spawn('afplay', [soundPath], { detached: true, stdio: 'ignore' });
+  };
 
   const handleKeyPress = async (): Promise<void> => {
     // Don't start if already recording
@@ -185,6 +194,7 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
 
     match(injectResult, {
       onSuccess: () => {
+        playSound(SOUND_INJECT);
         console.log('✅ Texto inyectado correctamente');
         const preview =
           textToInject.length > 100 ? textToInject.substring(0, 100) + '...' : textToInject;
