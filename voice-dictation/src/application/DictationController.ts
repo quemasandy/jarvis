@@ -19,6 +19,7 @@ import { isOk, isErr, match } from './types';
 
 // Sound effect for text injection confirmation (macOS system sound)
 const SOUND_INJECT = '/System/Library/Sounds/Glass.aiff';
+const SOUND_ERROR = '/System/Library/Sounds/Basso.aiff';
 
 interface DictationControllerDeps {
   readonly audioRecorder: IAudioRecorder;
@@ -142,6 +143,7 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
       if (isErr(transcribeResult)) {
         transcriptionError = transcribeResult.error.message;
         console.error(`❌ Error de transcripción: ${transcriptionError}`);
+        playSound(SOUND_ERROR);
         textToInject = `[Error de transcripción - ${filename}]`;
       } else {
         transcription = transcribeResult.value;
@@ -230,6 +232,7 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
         console.log(`   "${preview}"`);
       },
       onFailure: (error) => {
+        playSound(SOUND_ERROR);
         console.error(`❌ Error al inyectar texto: ${error.message}`);
         if (error.code === 'PERMISSION_DENIED') {
           console.error('   Habilita Accessibility en System Preferences');

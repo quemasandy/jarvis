@@ -26,6 +26,7 @@ const execAsync = promisify(exec);
 // Sound effect paths (macOS system sounds)
 const SOUND_START = '/System/Library/Sounds/Tink.aiff';
 const SOUND_STOP = '/System/Library/Sounds/Pop.aiff';
+const SOUND_ERROR = '/System/Library/Sounds/Basso.aiff';
 
 interface RecorderState {
   process: ChildProcess | null;
@@ -120,6 +121,9 @@ export const createSoxAudioRecorder = (
       state.filePath = null;
       state.startTime = null;
 
+      // Play error sound
+      playSound(SOUND_ERROR);
+
       return Err(
         createError(
           'AUDIO_RECORDING_START_FAILED',
@@ -185,6 +189,9 @@ export const createSoxAudioRecorder = (
       state.process = null;
       state.filePath = null;
       state.startTime = null;
+
+      // Play error sound
+      playSound(SOUND_ERROR);
 
       return Err(
         createError(
