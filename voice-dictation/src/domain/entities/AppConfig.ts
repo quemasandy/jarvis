@@ -98,14 +98,14 @@ export const DEFAULT_CONFIG: AppConfig = {
     provider: 'ollama',
     model: 'qwen2.5:3b',
     ollamaUrl: 'http://localhost:11434',
-    timeoutMs: 5000,
+    timeoutMs: 30000, // 30s to handle cold-start model loading
   },
   translation: {
     enabled: true,
     provider: 'ollama',
     model: 'qwen2.5:3b',
     ollamaUrl: 'http://localhost:11434',
-    timeoutMs: 8000, // Slightly longer timeout for translation
+    timeoutMs: 30000, // 30s to handle cold-start model loading
   },
   audio: {
     sampleRate: 16000,
