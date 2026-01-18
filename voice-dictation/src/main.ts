@@ -41,6 +41,43 @@ const RETENTION_HOURS = 24; // 1 day
 const MODEL = 'whisper-large-v3-turbo';
 
 /**
+ * Warmup Ollama model by sending a minimal prompt
+ * This pre-loads the model into memory to avoid cold-start delays
+ */
+const warmupOllamaModel = async (ollamaUrl: string, model: string): Promise<void> => {
+  try {
+    console.log(`🔥 Precalentando modelo ${model}...`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for warmup
+
+    const response = await fetch(`${ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        prompt: 'hi',
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      console.log(`✅ Modelo ${model} listo en memoria`);
+    } else {
+      console.warn(`⚠️  Warmup falló: HTTP ${response.status}`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn('⚠️  Warmup timeout - el modelo se cargará en el primer uso');
+    } else {
+      console.warn('⚠️  Warmup falló:', error instanceof Error ? error.message : error);
+    }
+  }
+};
+
+/**
  * Check Ollama availability with retry and exponential backoff
  * Useful when Ollama is starting up alongside the app
  */
@@ -434,6 +471,16 @@ const main = async (): Promise<void> => {
 
   if (debugKeys) {
     console.log('🐛 DEBUG MODE: Mostrando todas las teclas presionadas\n');
+  }
+
+  // Warmup Ollama model in the background (non-blocking)
+  if (translationService || textProcessor) {
+    const ollamaUrl = config.translation.ollamaUrl || config.postProcessing.ollamaUrl;
+    const model = config.translation.model || config.postProcessing.model;
+    // Run warmup asynchronously - don't block startup
+    warmupOllamaModel(ollamaUrl, model).catch(() => {
+      // Silently ignore warmup errors - first request will just be slower
+    });
   }
 
   console.log('🚀 Voice Dictation iniciado - Esperando input...\n');
