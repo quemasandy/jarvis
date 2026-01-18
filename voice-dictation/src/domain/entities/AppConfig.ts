@@ -18,7 +18,6 @@ export interface TriggerKeysConfig {
   readonly rightOption: TriggerKeyConfig;
   readonly fn: TriggerKeyConfig;
   readonly rightCommand: TriggerKeyConfig;
-  readonly f19: TriggerKeyConfig;
 }
 
 export interface TranslationConfig {
@@ -89,12 +88,6 @@ export const DEFAULT_CONFIG: AppConfig = {
       action: 'dictation',
       description: 'Right Command (⌘) - Alternative trigger',
     },
-    f19: {
-      enabled: false,
-      keyNames: ['F19'],
-      action: 'dictation',
-      description: 'F19 - For Karabiner users',
-    },
   },
   stt: {
     provider: 'groq',
@@ -137,7 +130,6 @@ export const mergeConfig = (
     rightOption: { ...DEFAULT_CONFIG.triggerKeys.rightOption, ...partial.triggerKeys?.rightOption },
     fn: { ...DEFAULT_CONFIG.triggerKeys.fn, ...partial.triggerKeys?.fn },
     rightCommand: { ...DEFAULT_CONFIG.triggerKeys.rightCommand, ...partial.triggerKeys?.rightCommand },
-    f19: { ...DEFAULT_CONFIG.triggerKeys.f19, ...partial.triggerKeys?.f19 },
   },
   stt: { ...DEFAULT_CONFIG.stt, ...partial.stt },
   postProcessing: { ...DEFAULT_CONFIG.postProcessing, ...partial.postProcessing },
@@ -160,9 +152,6 @@ export const getEnabledTriggerKeyNames = (config: AppConfig): string[] => {
   }
   if (triggerKeys.rightCommand.enabled) {
     allKeys.push(...triggerKeys.rightCommand.keyNames);
-  }
-  if (triggerKeys.f19.enabled) {
-    allKeys.push(...triggerKeys.f19.keyNames);
   }
 
   return allKeys;

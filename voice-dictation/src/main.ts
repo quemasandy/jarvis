@@ -41,6 +41,28 @@ const RETENTION_HOURS = 24; // 1 day
 const MODEL = 'whisper-large-v3-turbo';
 
 /**
+ * Check Ollama availability with retry and exponential backoff
+ * Useful when Ollama is starting up alongside the app
+ */
+const checkOllamaWithRetry = async (
+  url: string,
+  maxRetries: number = 3,
+  initialDelayMs: number = 1000
+): Promise<boolean> => {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const available = await checkOllamaAvailable(url);
+    if (available) return true;
+
+    if (attempt < maxRetries - 1) {
+      const delayMs = initialDelayMs * Math.pow(2, attempt); // 1s, 2s, 4s
+      console.log(`   ⏳ Reintentando en ${delayMs / 1000}s... (${attempt + 2}/${maxRetries})`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return false;
+};
+
+/**
  * Load custom dictionary from JSON file
  */
 const loadDictionary = (): CustomDictionary => {
@@ -206,7 +228,8 @@ const runStartupChecks = async (env: Record<string, string>, config: AppConfig):
   if (config.postProcessing.enabled && config.postProcessing.provider === 'ollama') {
     const { ollamaUrl, model: ollamaModel, timeoutMs } = config.postProcessing;
 
-    const ollamaAvailable = await checkOllamaAvailable(ollamaUrl);
+    console.log('🔄 Verificando Ollama para post-procesamiento...');
+    const ollamaAvailable = await checkOllamaWithRetry(ollamaUrl, 3, 1000);
 
     if (ollamaAvailable) {
       const modelAvailable = await checkModelAvailable(ollamaUrl, ollamaModel);
@@ -234,8 +257,12 @@ const runStartupChecks = async (env: Record<string, string>, config: AppConfig):
   if (config.translation.enabled && config.translation.provider === 'ollama') {
     const { ollamaUrl, model: translationModel, timeoutMs } = config.translation;
 
-    // Reuse the same availability check (Ollama might already be confirmed available)
-    const ollamaAvailable = await checkOllamaAvailable(ollamaUrl);
+    // Use retry if post-processing wasn't enabled or used different URL
+    const needsRetry = !textProcessor;
+    console.log('🔄 Verificando Ollama para traducción...');
+    const ollamaAvailable = needsRetry
+      ? await checkOllamaWithRetry(ollamaUrl, 3, 1000)
+      : await checkOllamaAvailable(ollamaUrl);
 
     if (ollamaAvailable) {
       const modelAvailable = await checkModelAvailable(ollamaUrl, translationModel);
@@ -282,7 +309,6 @@ const printInstructions = (config: AppConfig): void => {
   if (triggerKeys.rightOption.enabled) enabledKeys.push('Right Option (⌥)');
   if (triggerKeys.fn.enabled) enabledKeys.push('Fn/Globe');
   if (triggerKeys.rightCommand.enabled) enabledKeys.push('Right Command (⌘)');
-  if (triggerKeys.f19.enabled) enabledKeys.push('F19');
 
   const primaryKey = enabledKeys[0] || 'Right Option (⌥)';
   const otherKeys = enabledKeys.slice(1);
@@ -293,8 +319,8 @@ const printInstructions = (config: AppConfig): void => {
   console.log('   3. Habla tu texto');
   console.log('   4. Suelta la tecla para insertar el texto');
   console.log('');
-  console.log('   ⚡ Modo rápido: Solo transcribe (~1-2s)');
-  console.log('   ✨ Modo calidad: Shift + tecla → usa Ollama (~5-8s)');
+  console.log('   ✨ Modo calidad: Por defecto usa Ollama (~5-8s)');
+  console.log('   ⚡ Modo rápido: Shift + tecla → solo transcribe (~1-2s)');
   console.log('');
   if (otherKeys.length > 0) {
     console.log(`   💡 También funciona: ${otherKeys.join(', ')}`);
@@ -355,9 +381,6 @@ const main = async (): Promise<void> => {
     if (triggerKeys.rightCommand.enabled && triggerKeys.rightCommand.keyNames.includes(keyName)) {
       return triggerKeys.rightCommand.action;
     }
-    if (triggerKeys.f19.enabled && triggerKeys.f19.keyNames.includes(keyName)) {
-      return triggerKeys.f19.action;
-    }
 
     return 'dictation'; // Default fallback
   };
@@ -400,8 +423,8 @@ const main = async (): Promise<void> => {
       });
     } else if (state === 'UP' && triggerPressed) {
       triggerPressed = false;
-      // Pass shiftPressed as useOllama: Shift held = quality mode (with Ollama)
-      controller.handleKeyRelease(activeAction, shiftPressed).catch((err) => {
+      // Pass !shiftPressed as useOllama: Shift held = light mode (skip Ollama)
+      controller.handleKeyRelease(activeAction, !shiftPressed).catch((err) => {
         console.error('❌ Error en handleKeyRelease:', err);
       });
     }

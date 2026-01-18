@@ -17,12 +17,6 @@
       "keyNames": ["RIGHT META"],
       "action": "translate-to-english",
       "description": "Right Command (⌘) - Translate to English"
-    },
-    "f19": {
-      "enabled": false,
-      "keyNames": ["F19"],
-      "action": "dictation",
-      "description": "F19 - For Karabiner users"
     }
   },
   "stt": {

@@ -93,6 +93,7 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
     const metrics = {
       total: Date.now(),
       stopRecording: 0,
+      getActiveApp: 0,
       transcription: 0,
       postProcessing: 0,
       injection: 0,
@@ -100,8 +101,14 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
 
     console.log('⏸️  Deteniendo grabación...');
 
-    const result = await audioRecorder.stopRecording();
-    metrics.stopRecording = Date.now() - metrics.total;
+    // Parallelize stopRecording and getActiveApp for better performance
+    const stopStart = Date.now();
+    const [result, appResult] = await Promise.all([
+      audioRecorder.stopRecording(),
+      textInjector.getActiveApp(),
+    ]);
+    metrics.stopRecording = Date.now() - stopStart;
+    metrics.getActiveApp = metrics.stopRecording; // Both ran in parallel, so same time
 
     if (isErr(result)) {
       console.error(`❌ Error al detener grabación: ${result.error.message}`);
@@ -111,13 +118,10 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
     const recording = result.value;
     const duration = formatDuration(recording);
     const filename = getFilename(recording);
+    const activeApp = isOk(appResult) ? appResult.value : 'unknown';
 
     console.log(`✅ Audio guardado: ${recording.filePath}`);
     console.log(`   Duración: ${duration}`);
-
-    // Get active app first (needed for logging)
-    const appResult = await textInjector.getActiveApp();
-    const activeApp = isOk(appResult) ? appResult.value : 'unknown';
 
     // Track transcription timing
     const transcriptionStartTime = Date.now();
@@ -145,15 +149,15 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
 
         if (rawText.trim() === '') {
           console.log('⚠️  No se detectó audio/habla');
-          // Still log to history (empty transcription)
-          await logToHistory(
+          // Still log to history (empty transcription) - fire-and-forget
+          logToHistory(
             recording,
             '',
             activeApp,
             transcriptionStartTime,
             transcription,
             transcriptionError
-          );
+          ).catch((err) => console.warn(`⚠️ Error guardando historial: ${err.message}`));
           return;
         }
 
@@ -237,15 +241,15 @@ export const createDictationController = (deps: DictationControllerDeps): Dictat
     const totalTime = Date.now() - metrics.total;
     console.log(`⏱️  Tiempos: stop=${metrics.stopRecording}ms, stt=${metrics.transcription}ms, llm=${metrics.postProcessing}ms, inject=${metrics.injection}ms, total=${totalTime}ms`);
 
-    // Log to history
-    await logToHistory(
+    // Log to history (fire-and-forget for better performance)
+    logToHistory(
       recording,
       textToInject,
       activeApp,
       transcriptionStartTime,
       transcription,
       transcriptionError
-    );
+    ).catch((err) => console.warn(`⚠️ Error guardando historial: ${err.message}`));
 
     console.log('---');
   };

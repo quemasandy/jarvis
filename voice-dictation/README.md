@@ -128,12 +128,6 @@ Puedes personalizar qué teclas activan el dictado editando `config/jarvisConfig
       "keyNames": ["RIGHT META"],
       "action": "dictation",
       "description": "Right Command (⌘) - Alternative trigger"
-    },
-    "f19": {
-      "enabled": false,
-      "keyNames": ["F19"],
-      "action": "dictation",
-      "description": "F19 - For Karabiner users"
     }
   }
 }
@@ -142,7 +136,6 @@ Puedes personalizar qué teclas activan el dictado editando `config/jarvisConfig
 **Cómo configurar:**
 - `enabled: true/false` - Activa o desactiva cada tecla
 - `keyNames` - Nombres internos de la tecla (no modificar)
-- Para usuarios de **Karabiner**, pueden habilitar F19 para usar un mapeo personalizado
 
 ---
 
